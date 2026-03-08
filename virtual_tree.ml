@@ -38,6 +38,11 @@ end) = struct
     | Leaf _ -> true
     | _ -> false
 
+  let is_node (t : tree) : bool =
+    match t with 
+    | Node _ -> true
+    | _ -> false
+
   let get_parent (child: tree) : tree =
     match child with 
     | Root -> child
@@ -78,7 +83,7 @@ end) = struct
   let insert (leaf : tree) (new_data : data) : tree =
     match leaf with 
     | Root | Node _ | Branch _ -> failwith "Illegal argument: leaf must be a Leaf."
-    | Leaf l -> 
+    | Leaf l -> (
       match l.parent with 
       | Root -> (* create a node pointing to Root, reroute leaf to that node *)
         let new_node = Node({id=next_id(); parent=Root; child=leaf; data=new_data}) in
@@ -93,5 +98,51 @@ end) = struct
         update_child_in_parent l.parent new_node; (* now leaf's parent's child is new_node *)
         leaf
       | Leaf _ -> failwith "Illegal state: a Leaf cannot be a parent."
+    )
+
+  let merge_and_compress_nodes (parent : tree) (child : tree) : unit =
+    match parent, child with 
+    | Node n1, Node n2 -> ()
+    | _, _ -> ()
+
+  let delete_from_branch (to_del : tree) (branch : tree) : unit =
+    match branch with 
+    | Root | Node _ -> failwith "Illegal argument: branch must be a Branch."
+    | Branch b -> 
+      let other_child = if b.left = to_del then b.right else if b.right = to_del then b.left 
+                  else invalid_arg "Argument to_del is not a child of branch."
+                in
+      if is_node other_child && is_node b.parent then (* must merge the two nodes and compress their data *)
+        merge_and_compress_nodes b.parent other_child
+      else (
+        update_child_in_parent branch other_child; (* now branch's parent's child is other_child *)
+        update_parent_in_child other_child b.parent (* now other_child's parent is b.parent*)
+      )
+    | Leaf _ -> failwith "Illegal argument: branch must be a Branch."
+
+  (* deletes all parents until it gets to a Branch *)
+  (* if that Branch's parent is a node, compress node's data with branch's other child *)
+  let rec delete (to_delete : tree) : unit =
+    match to_delete with 
+    | Root -> ()
+    | Node n -> (
+      match n.parent with
+      | Root -> ()
+      | Node n -> (* Impossible: to_delete and its parent (a Node) should be compressed into one Node *)
+        failwith "Illegal state: A Node's parent cannot be a Node." 
+      | Branch b ->
+        delete_from_branch to_delete n.parent
+      | Leaf _ -> failwith "Illegal state: a Leaf cannot be a parent."
+    )
+    | Branch _ -> () (* branches cannot be deleted, must delete its children separately *)
+    | Leaf l -> (
+      match l.parent with
+      | Root -> ()
+      | Node n -> (* Delete the node recursively. The node parent is either Root or a Branch *)
+        delete l.parent
+      | Branch b -> (* Replace the branch with its other child. Compress if possible. *)
+        delete_from_branch to_delete l.parent
+      | Leaf _ -> failwith "Illegal state: a Leaf cannot be a parent."
+    )
 
 end
