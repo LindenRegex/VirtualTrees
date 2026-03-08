@@ -3,3 +3,5 @@ _opam/
 *.native
 *.csv
 *.jpg
+*.cmi
+*.cmo
