@@ -2,6 +2,7 @@
 module Virtual_tree (Data : sig
   type t
   val compress : t -> t -> t
+  val to_string : t -> string (* debugging purposes *)
 end) = struct
 
   let next_id =
@@ -30,6 +31,28 @@ end) = struct
     id : int;
     mutable parent : tree (* mutable because copy needs to return only one element *)
   }
+
+  let get_id (t: tree): int = 
+    match t with 
+    | Root -> 0
+    | Node n -> n.id
+    | Branch b -> b.id
+    | Leaf l -> l.id
+
+  let equal (t1: tree) (t2: tree): bool = (get_id t1) = (get_id t2)
+
+  let rec print (t: tree): unit =
+    match t with 
+    | Root -> Printf.printf "Root\n"
+    | Node n -> 
+      Printf.printf "Node %d (%s) -> " n.id (Data.to_string n.data);
+      print n.parent
+    | Branch b -> 
+      Printf.printf "Branch %d -> " b.id;
+      print b.parent
+    | Leaf l -> 
+      Printf.printf "Leaf %d -> " l.id; 
+      print l.parent
 
   let empty() : tree = Leaf({id=next_id(); parent=Root})
 
@@ -61,11 +84,11 @@ end) = struct
     match (get_parent old_child) with 
     | Root -> ()
     | Node n -> 
-      if n.child = old_child then n.child <- new_child
+      if (equal n.child old_child) then n.child <- new_child
       else ()
     | Branch b -> 
-      if b.left = old_child then b.left <- new_child
-      else if b.right = old_child then b.right <- new_child
+      if (equal b.left old_child) then b.left <- new_child
+      else if (equal b.right old_child) then b.right <- new_child
       else ()
     | Leaf l -> failwith "Illegal state: a Leaf cannot be a parent."
 
@@ -75,28 +98,25 @@ end) = struct
     | Leaf l -> 
       let new_leaf = Leaf({id=next_id(); parent=l.parent}) in
       let b = Branch({id=next_id(); parent=l.parent; left=leaf; right=new_leaf}) in
-      l.parent <- b;
-      update_parent_in_child new_leaf b; (* now new_leaf's parent is b*)
       update_child_in_parent leaf b; (* now leaf's parent's child is b *)
+      update_parent_in_child new_leaf b; (* now new_leaf's parent is b*)
+      l.parent <- b;
       new_leaf
 
-  let insert (leaf : tree) (new_data : data) : tree =
+  let insert (leaf : tree) (new_data : data) : unit =
     match leaf with 
     | Root | Node _ | Branch _ -> failwith "Illegal argument: leaf must be a Leaf."
     | Leaf l -> (
       match l.parent with 
       | Root -> (* create a node pointing to Root, reroute leaf to that node *)
         let new_node = Node({id=next_id(); parent=Root; child=leaf; data=new_data}) in
-        update_parent_in_child leaf new_node; (* now leaf's parent is new_node *)
-        leaf
+        update_parent_in_child leaf new_node (* now leaf's parent is new_node *)
       | Node n -> (* update n's data: compress it with new_data *)
-        n.data <- Data.compress n.data new_data;
-        leaf
+        n.data <- Data.compress n.data new_data
       | Branch b -> (* create a node pointing to b, reroute leaf and b to that node *)
         let new_node = Node({id=next_id(); parent=l.parent; child=leaf; data=new_data}) in
         update_parent_in_child leaf new_node; (* now leaf's parent is new_node *)
-        update_child_in_parent l.parent new_node; (* now leaf's parent's child is new_node *)
-        leaf
+        update_child_in_parent l.parent new_node (* now leaf's parent's child is new_node *)
       | Leaf _ -> failwith "Illegal state: a Leaf cannot be a parent."
     )
 
@@ -109,7 +129,7 @@ end) = struct
     match branch with 
     | Root | Node _ -> failwith "Illegal argument: branch must be a Branch."
     | Branch b -> 
-      let other_child = if b.left = to_del then b.right else if b.right = to_del then b.left 
+      let other_child = if (equal b.left to_del) then b.right else if (equal b.right to_del) then b.left 
                   else invalid_arg "Argument to_del is not a child of branch."
                 in
       if is_node other_child && is_node b.parent then (* must merge the two nodes and compress their data *)
