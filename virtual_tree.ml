@@ -87,8 +87,8 @@ end) = struct
       if (equal n.child old_child) then n.child <- new_child
       else ()
     | Branch b -> 
-      if (equal b.left old_child) then b.left <- new_child
-      else if (equal b.right old_child) then b.right <- new_child
+      if (equal b.left old_child) then (b.left <- new_child)
+      else if (equal b.right old_child) then (b.right <- new_child)
       else ()
     | Leaf l -> failwith "Illegal state: a Leaf cannot be a parent."
 
@@ -115,14 +115,17 @@ end) = struct
         n.data <- Data.compress n.data new_data
       | Branch b -> (* create a node pointing to b, reroute leaf and b to that node *)
         let new_node = Node({id=next_id(); parent=l.parent; child=leaf; data=new_data}) in
+        update_child_in_parent leaf new_node; (* now leaf's parent's child is new_node *)
         update_parent_in_child leaf new_node; (* now leaf's parent is new_node *)
-        update_child_in_parent l.parent new_node (* now leaf's parent's child is new_node *)
       | Leaf _ -> failwith "Illegal state: a Leaf cannot be a parent."
     )
 
   let merge_and_compress_nodes (parent : tree) (child : tree) : unit =
     match parent, child with 
-    | Node n1, Node n2 -> ()
+    | Node n1, Node n2 -> (* compress n2's data into n1, reroute n2's child to n1 *)
+      n1.data <- Data.compress n1.data n2.data;
+      update_parent_in_child n2.child parent; (* now n2's child's parent is n1 *)
+      n1.child <- n2.child (* now n1's child in n2's child*)
     | _, _ -> ()
 
   let delete_from_branch (to_del : tree) (branch : tree) : unit =
@@ -132,9 +135,9 @@ end) = struct
       let other_child = if (equal b.left to_del) then b.right else if (equal b.right to_del) then b.left 
                   else invalid_arg "Argument to_del is not a child of branch."
                 in
-      if is_node other_child && is_node b.parent then (* must merge the two nodes and compress their data *)
+      if is_node other_child && is_node b.parent then ((* must merge the two nodes and compress their data *)
         merge_and_compress_nodes b.parent other_child
-      else (
+      ) else (
         update_child_in_parent branch other_child; (* now branch's parent's child is other_child *)
         update_parent_in_child other_child b.parent (* now other_child's parent is b.parent*)
       )
