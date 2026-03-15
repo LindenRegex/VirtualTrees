@@ -1,8 +1,18 @@
+
+
 module Virtual_tree (Data : sig
   type t
   val compress : t -> t -> t
   val to_string : t -> string (* debugging purposes *)
-end) = struct
+end) : sig 
+  type tree
+  val print : tree -> unit
+  val empty : unit -> tree
+  val split : tree -> tree
+  val insert : tree -> Data.t -> unit
+  val delete : tree -> unit
+  val is_empty : tree -> bool
+end = struct
 
   let next_id =
     let counter = ref 0 in
@@ -152,12 +162,14 @@ end) = struct
 
   (* deletes all parents until it gets to a Branch *)
   (* if that Branch's parent is a node, compress node's data with branch's other child *)
+  (* if there is no branch in the tree, to_delete becomes the empty tree *)
   let rec delete (to_delete : tree) : unit =
     match to_delete with 
     | Root -> ()
     | Node n -> (
       match n.parent with
-      | Root -> ()
+      | Root -> (* make child (leaf) point to root *)
+        update_parent_in_child n.child Root
       | Node n -> (* Impossible: to_delete and its parent (a Node) should be compressed into one Node *)
         failwith "Illegal state: A Node's parent cannot be a Node." 
       | Branch b ->
