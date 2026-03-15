@@ -1,11 +1,18 @@
 OCAMLC = ocamlc
-TARGET = main
-SOURCES = virtual_tree.ml main.ml
+SRC = virtual_tree.ml
+MAIN_SRC = main.ml
+TEST_SRC = tests.ml
 
-all: $(TARGET)
+MAIN = main
+TEST = tests
 
-$(TARGET): $(SOURCES)
-	$(OCAMLC) -o $(TARGET) virtual_tree.ml main.ml
+all: $(MAIN) $(TEST)
+
+$(MAIN): $(SRC) $(MAIN_SRC)
+	$(OCAMLC) -o main $(SRC) $(MAIN_SRC)
+
+$(TEST): $(SRC) $(TEST_SRC)
+	$(OCAMLC) -o tests $(SRC) $(TEST_SRC)
 
 clean:
-	rm -f *.cmi *.cmo $(TARGET)
+	rm -f *.cmo *.cmi main tests

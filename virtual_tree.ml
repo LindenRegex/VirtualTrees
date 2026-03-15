@@ -1,4 +1,3 @@
-
 module Virtual_tree (Data : sig
   type t
   val compress : t -> t -> t
@@ -40,6 +39,14 @@ end) = struct
     | Leaf l -> l.id
 
   let equal (t1: tree) (t2: tree): bool = (get_id t1) = (get_id t2)
+
+  let is_empty (t: tree): bool =
+    match t with 
+    | Root | Node _ | Branch _ -> false
+    | Leaf l ->
+      match l.parent with 
+      | Root -> true
+      | _ -> false
 
   let rec print (t: tree): unit =
     match t with 

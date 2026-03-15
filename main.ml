@@ -13,13 +13,26 @@ let () =
   IntTree.insert tree0 5;
   IntTree.print tree0;
   let tree1 = IntTree.split tree0 in
+  print_endline "splitted";
   IntTree.print tree0;
   IntTree.print tree1;
   IntTree.insert tree1 9;
+  print_endline "added 9 in tree1";
+  IntTree.print tree0;
+  IntTree.print tree1;
   IntTree.insert tree1 100;
+  print_endline "added 100 in tree 1";
+  IntTree.print tree0;
+  IntTree.print tree1;
   IntTree.insert tree0 0;
+  print_endline "added 0 in tree 0";
+  IntTree.print tree0;
+  IntTree.print tree1;
   IntTree.insert tree0 1;
+  print_endline "added 1 in tree 0";
   IntTree.print tree0;
   IntTree.print tree1;
   IntTree.delete tree0;
+  print_endline "deleted tree 0";
+  IntTree.print tree0; (*garbage*)
   IntTree.print tree1
