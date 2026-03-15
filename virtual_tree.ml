@@ -2,6 +2,8 @@
 
 module Virtual_tree (Data : sig
   type t
+  val neutral_element : t
+  (* compress takes oldest/parent's data first *)
   val compress : t -> t -> t
   val to_string : t -> string (* debugging purposes *)
 end) : sig 
@@ -11,7 +13,8 @@ end) : sig
   val insert : tree -> Data.t -> unit
   val delete : tree -> unit
   val is_empty : tree -> bool
-  
+  val get_data : tree -> Data.t
+
   (* debugging *)
   val print : tree -> unit
   val depth : tree -> int
@@ -144,7 +147,8 @@ end = struct
     | Leaf l -> (
       match l.parent with 
       | Root -> (* create a node pointing to Root, reroute leaf to that node *)
-        let new_node = Node({id=next_id(); parent=Root; child=leaf; data=new_data}) in
+        let dt : data = Data.compress Data.neutral_element new_data in
+        let new_node = Node({id=next_id(); parent=Root; child=leaf; data=dt}) in
         update_parent_in_child leaf new_node (* now leaf's parent is new_node *)
       | Node n -> (* update n's data: compress it with new_data *)
         n.data <- Data.compress n.data new_data
@@ -204,5 +208,12 @@ end = struct
         delete_from_branch to_delete l.parent
       | Leaf _ -> failwith "Illegal state: a Leaf cannot be a parent."
     )
+
+  let rec get_data (t: tree): data =
+    match t with 
+    | Root -> Data.neutral_element
+    | Node n -> Data.compress (get_data n.parent) n.data
+    | Branch b -> get_data b.parent
+    | Leaf l -> get_data l.parent
 
 end

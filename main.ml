@@ -5,6 +5,7 @@ let () =
   let param = read_int() in
   let module IntTree = Virtual_tree(struct
     type t = int
+    let neutral_element = 0
     let compress = fun x y -> max (x + y) param
     let to_string = string_of_int
   end) in
