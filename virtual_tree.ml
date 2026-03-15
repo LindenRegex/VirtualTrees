@@ -6,12 +6,16 @@ module Virtual_tree (Data : sig
   val to_string : t -> string (* debugging purposes *)
 end) : sig 
   type tree
-  val print : tree -> unit
   val empty : unit -> tree
   val split : tree -> tree
   val insert : tree -> Data.t -> unit
   val delete : tree -> unit
   val is_empty : tree -> bool
+  
+  (* debugging *)
+  val print : tree -> unit
+  val depth : tree -> int
+  val node_depth : tree -> int
 end = struct
 
   let next_id =
@@ -72,6 +76,20 @@ end = struct
       print l.parent
 
   let empty() : tree = Leaf({id=next_id(); parent=Root})
+
+  let rec depth (t: tree) : int =
+    match t with 
+    | Root -> 0
+    | Node n -> 1 + depth n.parent
+    | Branch b -> 1 + depth b.parent
+    | Leaf l -> depth l.parent
+
+  let rec node_depth (t: tree) : int =
+    match t with 
+    | Root -> 0
+    | Node n -> 1 + node_depth n.parent
+    | Branch b -> node_depth b.parent
+    | Leaf l -> node_depth l.parent
 
   let is_leaf (t : tree) : bool =
     match t with 
