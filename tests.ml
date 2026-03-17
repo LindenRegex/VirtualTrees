@@ -110,6 +110,27 @@ end = struct
     IntTree.delete tree0;
     assert((IntTree.get_data tree1) = 4)
 
+  let get_data_delete_four_branches () =
+    let tree0 = IntTree.empty () in
+    IntTree.insert tree0 1;
+    let tree1 = IntTree.split tree0 in
+    let tree2 = IntTree.split tree1 in
+    IntTree.insert tree0 2;
+    IntTree.insert tree1 3;
+    IntTree.insert tree2 4;
+    let tree3 = IntTree.split tree0 in
+    IntTree.insert tree0 5;
+    IntTree.insert tree3 6;
+    IntTree.delete tree0;
+    assert((IntTree.get_data tree1) = 4);
+    assert((IntTree.get_data tree2) = 5);
+    assert((IntTree.get_data tree3) = 9);
+    IntTree.delete tree1;
+    assert((IntTree.get_data tree2) = 5);
+    assert((IntTree.get_data tree3) = 9);
+    IntTree.delete tree2;
+    assert((IntTree.get_data tree3) = 9)
+
   let tests () = 
     Printf.printf "\027[32mTests: \027[0m\n\n";
     empty_test();
@@ -119,6 +140,7 @@ end = struct
     get_data_two_branches_test();
     get_data_four_branches_test();
     get_data_delete_two_branches();
+    get_data_delete_four_branches();
     Printf.printf "\027[32mTests passed\027[0m\n"
 end
 
