@@ -5,3 +5,5 @@ _opam/
 *.jpg
 *.cmi
 *.cmo
+tests
+main
