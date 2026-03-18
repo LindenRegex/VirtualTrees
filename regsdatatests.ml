@@ -28,12 +28,33 @@ end = struct
     let l = Regsdata.compress l_old l_new in
     assert (l = Regsdata.Incomplete([(3, 3, 3); (4, 4, 4); (1, 1, 1); (2, 2, 2)]))
 
+  let two_lists_test1 () =
+    let l_old = Regsdata.Incomplete([(1, 1, 1); (2, 2, 2)]) in
+    let l_new = Regsdata.Incomplete([(3, 3, 3); (4, 4, 4); (0, 0, 0)]) in
+    let l = Regsdata.compress l_old l_new in
+    assert (l = Regsdata.Complete({a_cp=[|0; 1; 2; 3; 4|]; a_clk=[|0; 1; 2; 3; 4|]}))
+
+  let two_lists_test2 () =
+    let l_old = Regsdata.Incomplete([(1, 1, 1); (2, 2, 2)]) in
+    let l_new = Regsdata.Incomplete([(3, 3, 3); (4, 4, 4); (1, 0, 0)]) in
+    let l = Regsdata.compress l_old l_new in
+    assert (l = Regsdata.Complete({a_cp=[|-1; 0; 2; 3; 4|]; a_clk=[|-1; 0; 2; 3; 4|]}))
+
+  let two_lists_test3 () =
+    let l_old = Regsdata.Incomplete([(1, 1, 1); (2, 5, 5); (2, 2, 2); (1, 7, 7)]) in
+    let l_new = Regsdata.Incomplete([(3, 6, 6); (1, 0, 0); (3, 3, 3)]) in
+    let l = Regsdata.compress l_old l_new in
+    assert (l = Regsdata.Complete({a_cp=[|-1; 0; 5; 6; -1|]; a_clk=[|-1; 0; 5; 6; -1|]}))
+
   let tests () = 
     Printf.printf "\027[32mTests: \027[0m\n\n";
     neutral_test();
     two_arrays_test0();
     two_arrays_test1();
     two_lists_test0();
+    two_lists_test1();
+    two_lists_test2();
+    two_lists_test3();
     Printf.printf "\027[32mTests passed\027[0m\n"
 end
 
