@@ -33,9 +33,13 @@ end = struct
   let to_string (v: t) : string =
     match v with 
     | Complete arrays ->
-      let s = ref "" in
+      let s = ref "CP: " in
       for c = 0 to (Array.length arrays.a_cp)-1 do
         s := !s ^ string_of_int c ^ ": " ^ string_of_int (arrays.a_cp.(c)) ^ " | "
+      done;
+      s := !s ^ " CLK: ";
+      for c = 0 to (Array.length arrays.a_clk)-1 do
+        s := !s ^ string_of_int c ^ ": " ^ string_of_int (arrays.a_clk.(c)) ^ " | "
       done;
       !s
     | Incomplete l ->
@@ -43,7 +47,7 @@ end = struct
       match l with
       | [] -> ""
       | (i,cp,clk)::l' ->
-         "(" ^ string_of_int i ^ "," ^ string_of_int cp ^ ")::" ^ to_string_rec l'
+         "(" ^ string_of_int i ^ "," ^ string_of_int cp ^ "," ^ string_of_int clk ^ ")::" ^ to_string_rec l'
       in
       to_string_rec l
 
