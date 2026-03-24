@@ -2,13 +2,17 @@
 
 module Virtual_tree (Data : sig
   type t
+  type p
   val neutral_element : t
-  (* compress takes oldest/parent's data first *)
-  val compress : t -> t -> t
+  (* argument 1: extra parameter for compress *)
+  (* argument 2: oldest t value (closest to root) *)
+  (* argument 3: most recent t value (closest to leaf) *)
+  val compress : p -> t -> t -> t
+
   val to_string : t -> string (* debugging purposes *)
 end) : sig 
   type tree
-  val empty : unit -> tree
+  val empty : Data.p -> tree
   val split : tree -> tree
   val insert : tree -> Data.t -> unit
   val delete : tree -> unit
@@ -30,15 +34,17 @@ end = struct
   type data = Data.t
 
   type tree = 
-  | Root
+  | Root of Data.p
   | Node of {
     id : int;
+    param: Data.p;
     mutable parent : tree; (* mutable so we can reroute when merging with a branch tree node *)
     mutable child : tree;
     mutable data : data (* needs to be mutable so we can compress it *)
   }
   | Branch of { (* ensures binary tree with unlimited splits *)
     id : int;
+    param: Data.p;
     mutable parent : tree;
     mutable left : tree;
     mutable right : tree
@@ -50,7 +56,7 @@ end = struct
 
   let get_id (t: tree): int = 
     match t with 
-    | Root -> 0
+    | Root _ -> 0
     | Node n -> n.id
     | Branch b -> b.id
     | Leaf l -> l.id
@@ -59,15 +65,16 @@ end = struct
 
   let is_empty (t: tree): bool =
     match t with 
-    | Root | Node _ | Branch _ -> false
+    | Root _ -> invalid_arg "t cannot be Root"
+    | Node _ | Branch _ -> false
     | Leaf l ->
       match l.parent with 
-      | Root -> true
+      | Root _ -> true
       | _ -> false
 
   let rec print (t: tree): unit =
     match t with 
-    | Root -> Printf.printf "Root\n"
+    | Root _ -> Printf.printf "Root\n"
     | Node n -> 
       Printf.printf "Node %d (%s) -> " n.id (Data.to_string n.data);
       print n.parent
@@ -78,18 +85,19 @@ end = struct
       Printf.printf "Leaf %d -> " l.id; 
       print l.parent
 
-  let empty() : tree = Leaf({id=next_id(); parent=Root})
+  let empty (param: Data.p) : tree = 
+    Leaf({id=next_id(); parent=Root(param)})
 
   let rec depth (t: tree) : int =
     match t with 
-    | Root -> 0
+    | Root _ -> 0
     | Node n -> 1 + depth n.parent
     | Branch b -> 1 + depth b.parent
     | Leaf l -> depth l.parent
 
   let rec node_depth (t: tree) : int =
     match t with 
-    | Root -> 0
+    | Root _ -> 0
     | Node n -> 1 + node_depth n.parent
     | Branch b -> node_depth b.parent
     | Leaf l -> node_depth l.parent
@@ -106,21 +114,28 @@ end = struct
 
   let get_parent (child: tree) : tree =
     match child with 
-    | Root -> child
+    | Root _ -> child
     | Node n -> n.parent
     | Branch b -> b.parent
     | Leaf l -> l.parent
 
+  let get_param (t: tree) : Data.p =
+    match t with
+    | Root p -> p 
+    | Node n -> n.param 
+    | Branch b -> b.param 
+    | Leaf _ -> invalid_arg "Leaves do not know the Data parameter"
+
   let update_parent_in_child (child : tree) (new_parent : tree) : unit =
     match child with
-    | Root -> ()
+    | Root _ -> ()
     | Node n -> n.parent <- new_parent
     | Branch b -> b.parent <- new_parent
     | Leaf l -> l.parent <- new_parent
 
   let update_child_in_parent (old_child : tree) (new_child : tree) : unit =
     match (get_parent old_child) with 
-    | Root -> ()
+    | Root _ -> ()
     | Node n -> 
       if (equal n.child old_child) then n.child <- new_child
       else ()
@@ -132,10 +147,10 @@ end = struct
 
   let split (leaf : tree) : tree = 
     match leaf with 
-    | Root | Node _ | Branch _  -> failwith "Invalid argument: leaf must be a Leaf."
+    | Root _ | Node _ | Branch _  -> invalid_arg "leaf must be a Leaf."
     | Leaf l -> 
       let new_leaf = Leaf({id=next_id(); parent=l.parent}) in
-      let b = Branch({id=next_id(); parent=l.parent; left=leaf; right=new_leaf}) in
+      let b = Branch({id=next_id(); param=(get_param l.parent); parent=l.parent; left=leaf; right=new_leaf}) in
       update_child_in_parent leaf b; (* now leaf's parent's child is b *)
       update_parent_in_child new_leaf b; (* now new_leaf's parent is b*)
       l.parent <- b;
@@ -143,17 +158,17 @@ end = struct
 
   let insert (leaf : tree) (new_data : data) : unit =
     match leaf with 
-    | Root | Node _ | Branch _ -> failwith "Illegal argument: leaf must be a Leaf."
+    | Root _ | Node _ | Branch _ -> invalid_arg "leaf must be a Leaf."
     | Leaf l -> (
       match l.parent with 
-      | Root -> (* create a node pointing to Root, reroute leaf to that node *)
-        let dt : data = Data.compress Data.neutral_element new_data in
-        let new_node = Node({id=next_id(); parent=Root; child=leaf; data=dt}) in
+      | Root p -> (* create a node pointing to Root, reroute leaf to that node *)
+        let dt : data = Data.compress p Data.neutral_element new_data in
+        let new_node = Node({id=next_id(); param=p; parent=l.parent; child=leaf; data=dt}) in
         update_parent_in_child leaf new_node (* now leaf's parent is new_node *)
       | Node n -> (* update n's data: compress it with new_data *)
-        n.data <- Data.compress n.data new_data
+        n.data <- Data.compress n.param n.data new_data
       | Branch b -> (* create a node pointing to b, reroute leaf and b to that node *)
-        let new_node = Node({id=next_id(); parent=l.parent; child=leaf; data=new_data}) in
+        let new_node = Node({id=next_id(); param=b.param; parent=l.parent; child=leaf; data=new_data}) in
         update_child_in_parent leaf new_node; (* now leaf's parent's child is new_node *)
         update_parent_in_child leaf new_node; (* now leaf's parent is new_node *)
       | Leaf _ -> failwith "Illegal state: a Leaf cannot be a parent."
@@ -162,14 +177,14 @@ end = struct
   let merge_and_compress_nodes (parent : tree) (child : tree) : unit =
     match parent, child with 
     | Node n1, Node n2 -> (* compress n2's data into n1, reroute n2's child to n1 *)
-      n1.data <- Data.compress n1.data n2.data;
+      n1.data <- Data.compress n1.param n1.data n2.data;
       update_parent_in_child n2.child parent; (* now n2's child's parent is n1 *)
       n1.child <- n2.child (* now n1's child in n2's child*)
     | _, _ -> ()
 
   let delete_from_branch (to_del : tree) (branch : tree) : unit =
     match branch with 
-    | Root | Node _ -> failwith "Illegal argument: branch must be a Branch."
+    | Root _ | Node _ -> invalid_arg "branch must be a Branch."
     | Branch b -> 
       let other_child = if (equal b.left to_del) then b.right else if (equal b.right to_del) then b.left 
                   else invalid_arg "Argument to_del is not a child of branch."
@@ -180,18 +195,18 @@ end = struct
         update_child_in_parent branch other_child; (* now branch's parent's child is other_child *)
         update_parent_in_child other_child b.parent (* now other_child's parent is b.parent*)
       )
-    | Leaf _ -> failwith "Illegal argument: branch must be a Branch."
+    | Leaf _ -> invalid_arg "branch must be a Branch."
 
   (* deletes all parents until it gets to a Branch *)
   (* if that Branch's parent is a node, compress node's data with branch's other child *)
   (* if there is no branch in the tree, to_delete becomes the empty tree *)
   let rec delete (to_delete : tree) : unit =
     match to_delete with 
-    | Root -> ()
+    | Root _ -> ()
     | Node n -> (
       match n.parent with
-      | Root -> (* make child (leaf) point to root *)
-        update_parent_in_child n.child Root
+      | Root _ -> (* make child (leaf) point to root *)
+        update_parent_in_child n.child n.parent
       | Node n -> (* Impossible: to_delete and its parent (a Node) should be compressed into one Node *)
         failwith "Illegal state: A Node's parent cannot be a Node." 
       | Branch b ->
@@ -201,7 +216,7 @@ end = struct
     | Branch _ -> () (* branches cannot be deleted, must delete its children separately *)
     | Leaf l -> (
       match l.parent with
-      | Root -> ()
+      | Root _ -> ()
       | Node n -> (* Delete the node recursively. The node parent is either Root or a Branch *)
         delete l.parent
       | Branch b -> (* Replace the branch with its other child. Compress if possible. *)
@@ -211,8 +226,8 @@ end = struct
 
   let rec get_data (t: tree): data =
     match t with 
-    | Root -> Data.neutral_element
-    | Node n -> Data.compress (get_data n.parent) n.data
+    | Root _ -> Data.neutral_element
+    | Node n -> Data.compress n.param (get_data n.parent) n.data
     | Branch b -> get_data b.parent
     | Leaf l -> get_data l.parent
 

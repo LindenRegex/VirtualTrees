@@ -5,11 +5,12 @@ let () =
   let param = read_int() in
   let module IntTree = Virtual_tree(struct
     type t = int
+    type p = int
     let neutral_element = 0
-    let compress = fun x y -> max (x + y) param
+    let compress = fun p x y -> max p (x + y)
     let to_string = string_of_int
   end) in
-  let tree0 = IntTree.empty() in
+  let tree0 = IntTree.empty param in
   IntTree.print tree0;
   IntTree.insert tree0 5;
   IntTree.print tree0;
