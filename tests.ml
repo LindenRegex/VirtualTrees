@@ -3,8 +3,9 @@ open Virtual_tree
 
 module IntData = struct
   type t = int
+  type p = int
   let neutral_element = 0
-  let compress = fun x y -> x + y
+  let compress = fun p x y -> x + y
   let to_string = string_of_int
 end
 
@@ -15,7 +16,7 @@ module Tests: sig
 end = struct
 
   let empty_test () =
-    let empty_tree = IntTree.empty() in
+    let empty_tree = IntTree.empty 0 in
     assert(IntTree.is_empty empty_tree);
     assert((IntTree.depth empty_tree) = 0);
     assert((IntTree.node_depth empty_tree) = 0);
@@ -24,14 +25,14 @@ end = struct
     assert(IntTree.is_empty empty_tree)
 
   let delete_single_branch_test () =
-    let tree = IntTree.empty() in
+    let tree = IntTree.empty 0 in
     IntTree.insert tree 0;
     IntTree.insert tree 1;
     IntTree.delete tree;
     assert(IntTree.is_empty tree)
 
   let delete_other_child_is_branch_test () = 
-    let tree0 = IntTree.empty() in
+    let tree0 = IntTree.empty 0 in
     let tree1 = IntTree.split tree0 in
     assert((IntTree.depth tree0) = 1);
     assert((IntTree.depth tree1) = 1);
@@ -51,7 +52,7 @@ end = struct
     assert((IntTree.node_depth tree2) = 0)
 
   let get_data_single_branch_test () = 
-    let tree = IntTree.empty() in
+    let tree = IntTree.empty 0 in
     IntTree.insert tree 3;
     assert((IntTree.depth tree) = 1);
     assert((IntTree.node_depth tree) = 1);
@@ -67,7 +68,7 @@ end = struct
     assert((IntTree.get_data tree) = 18)
 
   let get_data_two_branches_test () =
-    let tree = IntTree.empty () in
+    let tree = IntTree.empty 0 in
     IntTree.insert tree 7;
     let tree0 = IntTree.split tree in
     IntTree.insert tree 90;
@@ -81,7 +82,7 @@ end = struct
     assert((IntTree.get_data tree0) = 32)
 
   let get_data_four_branches_test () =
-    let tree0 = IntTree.empty () in
+    let tree0 = IntTree.empty 0 in
     IntTree.insert tree0 1;
     let tree1 = IntTree.split tree0 in
     let tree2 = IntTree.split tree1 in
@@ -102,7 +103,7 @@ end = struct
     assert((IntTree.get_data tree3) = 9)
 
   let get_data_delete_two_branches () =
-    let tree0 = IntTree.empty () in
+    let tree0 = IntTree.empty 0 in
     IntTree.insert tree0 1;
     let tree1 = IntTree.split tree0 in
     IntTree.insert tree0 2;
@@ -111,7 +112,7 @@ end = struct
     assert((IntTree.get_data tree1) = 4)
 
   let get_data_delete_four_branches () =
-    let tree0 = IntTree.empty () in
+    let tree0 = IntTree.empty 0 in
     IntTree.insert tree0 1;
     let tree1 = IntTree.split tree0 in
     let tree2 = IntTree.split tree1 in
