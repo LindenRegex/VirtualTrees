@@ -59,7 +59,8 @@ end = struct
 
   let is_empty (t: tree): bool =
     match t with 
-    | Root | Node _ | Branch _ -> false
+    | Root -> invalid_arg "t cannot be Root"
+    | Node _ | Branch _ -> false
     | Leaf l ->
       match l.parent with 
       | Root -> true
@@ -132,7 +133,7 @@ end = struct
 
   let split (leaf : tree) : tree = 
     match leaf with 
-    | Root | Node _ | Branch _  -> failwith "Invalid argument: leaf must be a Leaf."
+    | Root | Node _ | Branch _  -> invalid_arg "leaf must be a Leaf."
     | Leaf l -> 
       let new_leaf = Leaf({id=next_id(); parent=l.parent}) in
       let b = Branch({id=next_id(); parent=l.parent; left=leaf; right=new_leaf}) in
@@ -143,7 +144,7 @@ end = struct
 
   let insert (leaf : tree) (new_data : data) : unit =
     match leaf with 
-    | Root | Node _ | Branch _ -> failwith "Illegal argument: leaf must be a Leaf."
+    | Root | Node _ | Branch _ -> invalid_arg "leaf must be a Leaf."
     | Leaf l -> (
       match l.parent with 
       | Root -> (* create a node pointing to Root, reroute leaf to that node *)
@@ -169,7 +170,7 @@ end = struct
 
   let delete_from_branch (to_del : tree) (branch : tree) : unit =
     match branch with 
-    | Root | Node _ -> failwith "Illegal argument: branch must be a Branch."
+    | Root | Node _ -> invalid_arg "branch must be a Branch."
     | Branch b -> 
       let other_child = if (equal b.left to_del) then b.right else if (equal b.right to_del) then b.left 
                   else invalid_arg "Argument to_del is not a child of branch."
@@ -180,7 +181,7 @@ end = struct
         update_child_in_parent branch other_child; (* now branch's parent's child is other_child *)
         update_parent_in_child other_child b.parent (* now other_child's parent is b.parent*)
       )
-    | Leaf _ -> failwith "Illegal argument: branch must be a Branch."
+    | Leaf _ -> invalid_arg "branch must be a Branch."
 
   (* deletes all parents until it gets to a Branch *)
   (* if that Branch's parent is a node, compress node's data with branch's other child *)
