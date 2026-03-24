@@ -9,13 +9,13 @@ module Regsdata : sig
     }
   | Incomplete of (int * int *int) list
 
-  val neutral_element : t
-  val compress : t -> t -> t
-  val to_string : t -> string
-  val to_arrays : t -> int Array.t * int Array.t
-end = struct
+  type p = int
 
-  let regs_size = 5 (* to change *)
+  val neutral_element : t
+  val compress : p -> t -> t -> t
+  val to_string : t -> string
+  val to_arrays : int -> t -> int Array.t * int Array.t
+end = struct
 
   type t = 
   | Complete of {
@@ -27,6 +27,8 @@ end = struct
     (* second int: the cp value *)
     (* third int: the clock value *)
   | Incomplete of (int * int *int) list (*list: single or doubly ?*)
+
+  type p = int
 
   let neutral_element : t = Incomplete([])
 
@@ -83,15 +85,16 @@ end = struct
   (* Solution 1: use doubly linked list like in Théo's paper *)
   (* Solution 2: convert l to array and merge arrays *)
   let compress_list_and_arrays (a_cp: int Array.t) (a_clk: int Array.t) (l: (int * int * int) list): int Array.t * int Array.t =
-    let (l_cp, l_clk) = compress_arrays_and_list (Array.make regs_size (-1)) (Array.make regs_size (-1)) l in
+    let size = Array.length a_cp in
+    let (l_cp, l_clk) = compress_arrays_and_list (Array.make size (-1)) (Array.make size (-1)) l in
     merge_arrays a_cp l_cp a_clk l_clk
 
   (* t1 is "oldest", t2 is "most recent" *)
-  let compress (t1: t) (t2: t): t = 
+  let compress (regs_size: p) (t1: t) (t2: t): t = 
     match t1, t2 with
     | Complete a1, Complete a2 -> (* merge arrays *)
       let (a_cp, a_clk) = merge_arrays a1.a_cp a2.a_cp a1.a_clk a2.a_clk in
-      Complete({a_cp=a_cp; a_clk=a_clk}) 
+      Complete({a_cp=a_cp; a_clk=a_clk})
     | Complete a1, Incomplete l2 -> (* incorporate l2 in a1 *)
       let (a_cp, a_clk) = compress_list_and_arrays a1.a_cp a1.a_clk l2 in
       Complete({a_cp=a_cp; a_clk=a_clk}) 
@@ -108,9 +111,9 @@ end = struct
       ) else 
         Incomplete(l)
 
-  let to_arrays (v: t) : int Array.t * int Array.t =
+  let to_arrays (size: int) (v: t) : int Array.t * int Array.t =
     match v with 
     | Complete arrays -> (arrays.a_cp, arrays.a_clk)
-    | Incomplete l -> compress_arrays_and_list (Array.make regs_size (-1)) (Array.make regs_size (-1)) l
+    | Incomplete l -> compress_arrays_and_list (Array.make size (-1)) (Array.make size (-1)) l
 
 end
