@@ -37,4 +37,5 @@ let () =
   IntTree.delete tree0;
   print_endline "deleted tree 0";
   IntTree.print tree0; (*garbage*)
-  IntTree.print tree1
+  IntTree.print tree1;
+  print_endline (IntTree.to_string tree1)

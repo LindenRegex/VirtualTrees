@@ -21,6 +21,7 @@ end) : sig
 
   (* debugging *)
   val print : tree -> unit
+  val to_string : tree -> string
   val depth : tree -> int
   val node_depth : tree -> int
 end = struct
@@ -84,6 +85,13 @@ end = struct
     | Leaf l -> 
       Printf.printf "Leaf %d -> " l.id; 
       print l.parent
+
+  let rec to_string (t: tree): string =
+    match t with 
+    | Root _ -> "Root"
+    | Node n -> (Printf.sprintf "Node %d (%s) -> " n.id (Data.to_string n.data)) ^ (to_string n.parent)
+    | Branch b -> (Printf.sprintf "Branch %d -> " b.id) ^ (to_string b.parent)
+    | Leaf l -> (Printf.sprintf "Leaf %d -> " l.id) ^ (to_string l.parent)
 
   let empty (param: Data.p) : tree = 
     Leaf({id=next_id(); parent=Root(param)})
