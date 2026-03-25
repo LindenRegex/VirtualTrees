@@ -82,6 +82,22 @@ end = struct
     let l = Regsdata.compress 5 l_old a_new in
     assert (l = Regsdata.Complete({a_cp=[|1; 13; 3; 11; -1|]; a_clk=[|6; 7; 8; 9; -1|]}))
 
+  let array_get_test () = 
+    let a = Regsdata.Complete({a_cp=[|1; 5; 3; 9; -1|]; a_clk=[|-1; 7; 8; 9; -1|]}) in
+    assert ((Regsdata.get_cp_at a 1) = 5);
+    assert ((Regsdata.get_cp_at a 4) = -1);
+    assert ((Regsdata.get_clk_at a 2) = 8);
+    assert ((Regsdata.get_clk_at a 0) = -1)
+
+  let list_get_test () = 
+    let l = Regsdata.Incomplete([(0, 0, 1); (3, 10, 11); (3, 12, 13)]) in
+    assert ((Regsdata.get_cp_at l 0) = 0);
+    assert ((Regsdata.get_cp_at l 3) = 10);
+    assert ((Regsdata.get_cp_at l 4) = -1);
+    assert ((Regsdata.get_clk_at l 0) = 1);
+    assert ((Regsdata.get_clk_at l 3) = 11);
+    assert ((Regsdata.get_clk_at l 1) = -1)
+
   let tests () = 
     Printf.printf "\027[32mTests: \027[0m\n\n";
     neutral_test();
@@ -97,6 +113,8 @@ end = struct
     array_list_test1();
     array_list_test2();
     array_list_test3();
+    array_get_test();
+    list_get_test();
     Printf.printf "\027[32mTests passed\027[0m\n"
 end
 

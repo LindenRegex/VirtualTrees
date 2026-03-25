@@ -15,6 +15,8 @@ module Regsdata : sig
   val compress : p -> t -> t -> t
   val to_string : t -> string
   val to_arrays : int -> t -> int Array.t * int Array.t
+  val get_cp_at : t -> int -> int
+  val get_clk_at : t -> int -> int
 end = struct
 
   type t = 
@@ -115,5 +117,29 @@ end = struct
     match v with 
     | Complete arrays -> (arrays.a_cp, arrays.a_clk)
     | Incomplete l -> compress_arrays_and_list (Array.make size (-1)) (Array.make size (-1)) l
+
+  let get_cp_at (t: t) (k: int) : int =
+    match t with
+    | Incomplete l -> (* check if l contains an update for k *)
+      let rec get_rec (l:(int*int*int) list) : int =
+        match l with
+        | [] -> -1
+        | (kl,cp,clk)::l' ->
+           if (kl = k) then cp
+           else get_rec l' in
+      get_rec l
+    | Complete a -> a.a_cp.(k)
+
+  let get_clk_at (t: t) (k: int) : int =
+    match t with
+    | Incomplete l -> (* check if l contains an update for k *)
+      let rec get_rec (l:(int*int*int) list) : int =
+        match l with
+        | [] -> -1
+        | (kl,cp,clk)::l' ->
+           if (kl = k) then clk
+           else get_rec l' in
+      get_rec l
+    | Complete a -> a.a_clk.(k)
 
 end
