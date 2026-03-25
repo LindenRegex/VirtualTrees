@@ -7,6 +7,8 @@ module IntData = struct
   let neutral_element = 0
   let compress = fun p x y -> x + y
   let to_string = string_of_int
+  let f = 4
+  let g (x: int): int = x + 1
 end
 
 module IntTree = Virtual_tree(IntData)
@@ -16,7 +18,7 @@ module Tests: sig
 end = struct
 
   let empty_test () =
-    let empty_tree = IntTree.empty 0 in
+    let empty_tree: IntTree.tree = IntTree.empty 0 in
     assert(IntTree.is_empty empty_tree);
     assert((IntTree.depth empty_tree) = 0);
     assert((IntTree.node_depth empty_tree) = 0);
