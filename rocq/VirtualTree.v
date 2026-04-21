@@ -57,7 +57,16 @@ Module VT (Data : CDATA).
   Definition insert (id: nat) (new : Data.t) (s: State) : State :=
     (insert_in_tree id new (tree s), cnt s, param s).
 
-  Definition split := Admitted.
+  Fixpoint split_in_tree (id: nat) (new_id: nat) (t: VirtualTree) : VirtualTree :=
+    match t with
+    | Root c => Root (split_in_tree id new_id c)
+    | Node d c => Node d (split_in_tree id new_id c)
+    | Branch l r => Branch (split_in_tree id new_id l) (split_in_tree id new_id r)
+    | Leaf i => Branch (Leaf i) (Leaf id)
+    end.
+
+  Definition split (id: nat) (s: State) : State * nat :=
+    ((split_in_tree id (cnt s) (tree s), (cnt s) + 1, param s), cnt s).
 
   Definition delete := Admitted.
 
