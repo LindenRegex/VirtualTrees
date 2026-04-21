@@ -1,6 +1,9 @@
 
 Require Import CData.
 
+From Stdlib Require Import List.
+Import ListNotations.
+
 Module VT (Data : CDATA).
   Import Data.
 
@@ -29,7 +32,15 @@ Module VT (Data : CDATA).
     | Leaf _ => True
     end.
 
-  Definition is_valid_tree_ids (t: VirtualTree) : Prop := True. (* TODO: all ids are distinct *)
+  Fixpoint get_all_ids (t: VirtualTree) : list nat :=
+    match t with
+    | Seed => []
+    | Node d c => get_all_ids c
+    | Branch l r => (get_all_ids l) ++ (get_all_ids r)
+    | Leaf id => [id]
+    end.
+
+  Definition is_valid_tree_ids (t: VirtualTree) : Prop := NoDup (get_all_ids t).
 
   Definition is_valid_tree (t: VirtualTree) : Prop :=
     is_valid_tree_structure t /\ is_valid_tree_ids t.
@@ -49,7 +60,7 @@ Module VT (Data : CDATA).
     
 
   (* Type state: counter + tree (+ param ?) *)
-  (* Definine validity for a state *)
+  (* Define validity for a state *)
 
   Definition State := (VirtualTree * nat * Data.p)%type.
 
