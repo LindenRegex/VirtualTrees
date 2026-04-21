@@ -1,5 +1,14 @@
-_build/
-_opam/
-*.native
+# OCaml
+*.cmi
+*.cmo
+
+#Rocq
+*.vo
+*.vok
+*.vos
+*.v~
+*.glob
+*.aux
+
 *.csv
 *.jpg
