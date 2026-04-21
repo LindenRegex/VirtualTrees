@@ -13,20 +13,38 @@ Module VT (Data : CDATA).
   (* is valid : node child is not a node, any child is not a root *)
   
 
-  Fixpoint is_valid_tree (t: VirtualTree) : bool :=
+  Fixpoint is_valid_tree_structure (t: VirtualTree) : Prop :=
     match t with
-    | Seed => true
+    | Seed => True
     | Node _ c => match c with
-                  | Seed => false
-                  | Node _ _ => false
-                  | _ => is_valid_tree c
+                  | Seed => False
+                  | Node _ _ => False
+                  | _ => is_valid_tree_structure c
                   end
     | Branch l r => match l, r with
-                    | Seed, _ => false
-                    | _, Seed => false
-                    | _, _ => (is_valid_tree l) && (is_valid_tree r)
+                    | Seed, _ => False
+                    | _, Seed => False
+                    | _, _ => (is_valid_tree_structure l) /\ (is_valid_tree_structure r)
                     end
-    | Leaf _ => true
+    | Leaf _ => True
+    end.
+
+  Definition is_valid_tree_ids (t: VirtualTree) : Prop := True. (* TODO: all ids are distinct *)
+
+  Definition is_valid_tree (t: VirtualTree) : Prop :=
+    is_valid_tree_structure t /\ is_valid_tree_ids t.
+
+  Fixpoint max_id_in_tree (t: VirtualTree) : option nat :=
+    match t with
+    | Seed => None
+    | Node _ c => max_id_in_tree c
+    | Branch l r => match (max_id_in_tree l), (max_id_in_tree r) with
+                    | Some vl, Some vr => Some (Nat.max vl vr)
+                    | Some vl, _ => Some vl
+                    | _, Some vr => Some vr
+                    | _, _ => None
+                    end
+    | Leaf i => Some i
     end.
     
 
@@ -47,6 +65,13 @@ Module VT (Data : CDATA).
     match s with
     | (_, _, p) => p
     end.
+
+  (* TODO : is_valid_state : max index in tree is less that counter, and tree is valid *)
+  Definition is_valid_state (s: State) : Prop :=
+    is_valid_tree_structure (tree s) /\ is_valid_tree_ids (tree s)
+    /\ ((exists id, max_id_in_tree (tree s) = Some id /\ id < (cnt s))
+        \/ max_id_in_tree (tree s) = None).
+  
 
   Definition is_leaf_with_id (t: VirtualTree) (id: nat) : bool :=
     match t with
@@ -122,8 +147,48 @@ Module VT (Data : CDATA).
   Definition delete (id: nat) (s: State) :=
     (delete_in_tree id (tree s), cnt s, param s).
 
-  Definition get_compressed_data := Admitted.
+  Inductive triple_option (A: Type) :=
+  | TNone
+  | TEmpty
+  | TSome (v: A).
+  Arguments TNone {A}.
+  Arguments TEmpty {A}.
+  Arguments TSome {A}.
 
-  Definition is_empty := Admitted.
+  Fixpoint get_compressed_data_in_tree (id: nat) (t: VirtualTree) : triple_option Data.t :=
+    match t with
+    | Seed => TNone
+    | Node d c =>
+        match get_compressed_data_in_tree id c with
+        | TNone => TNone
+        | TEmpty => TSome d
+        | TSome v => TSome (Data.compress d v)
+        end
+    | Branch l r =>
+        match (get_compressed_data_in_tree id l) with
+        | TNone => match (get_compressed_data_in_tree id r) with
+                  | TNone => TNone
+                  | TEmpty => TEmpty
+                  | TSome v => TSome v
+                  end
+        | TEmpty => TEmpty
+        | TSome v => TSome v
+        end
+    | Leaf i => if Nat.eqb i id
+                then TEmpty
+                else TNone
+    end.
+
+  Definition get_compressed_data (id:nat) (s: State) : option Data.t :=
+    match get_compressed_data_in_tree id (tree s) with
+    | TSome v => Some v
+    | _ => None
+    end.
+
+  Definition is_empty_tree (t: VirtualTree) : bool :=
+    match t with
+    | Seed => true
+    | _ => false
+    end.
 
 End VT.
