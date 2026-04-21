@@ -6,7 +6,6 @@ Module VT (Data : CDATA).
 
   Inductive VirtualTree : Set := (* the actal tree with root, branch, node and leaf *)
   | Seed
-  | Root (child: VirtualTree)
   | Node (data: Data.t) (child: VirtualTree)
   | Branch (l: VirtualTree) (r: VirtualTree)
   | Leaf (id: nat).
@@ -17,18 +16,14 @@ Module VT (Data : CDATA).
   Fixpoint is_valid_tree (t: VirtualTree) : bool :=
     match t with
     | Seed => true
-    | Root c => match c with
-                | Root _ => false
-                | _ => is_valid_tree c
-                end
     | Node _ c => match c with
-                  | Root _ => false
+                  | Seed => false
                   | Node _ _ => false
                   | _ => is_valid_tree c
                   end
     | Branch l r => match l, r with
-                    | Root _, _ => false
-                    | _, Root _ => false
+                    | Seed, _ => false
+                    | _, Seed => false
                     | _, _ => (is_valid_tree l) && (is_valid_tree r)
                     end
     | Leaf _ => true
@@ -68,9 +63,6 @@ Module VT (Data : CDATA).
   Fixpoint insert_in_tree (id: nat) (new: Data.t) (t: VirtualTree) : VirtualTree :=
     match t with
     | Seed => Seed
-    | Root c => if is_leaf_with_id c id
-                then Root (Node new c)
-                else Root (insert_in_tree id new c)
     | Node d c => if is_leaf_with_id c id
                   then Node (Data.compress d new) c
                   else Node d (insert_in_tree id new c)
@@ -88,10 +80,11 @@ Module VT (Data : CDATA).
   Fixpoint split_in_tree (id: nat) (new_id: nat) (t: VirtualTree) : VirtualTree :=
     match t with
     | Seed => Seed
-    | Root c => Root (split_in_tree id new_id c)
     | Node d c => Node d (split_in_tree id new_id c)
     | Branch l r => Branch (split_in_tree id new_id l) (split_in_tree id new_id r)
-    | Leaf i => Branch (Leaf i) (Leaf id)
+    | Leaf i => if Nat.eqb i id
+                then Branch (Leaf i) (Leaf id)
+                else Leaf i
     end.
 
   Definition split (id: nat) (s: State) : State * nat :=
@@ -100,7 +93,6 @@ Module VT (Data : CDATA).
   Fixpoint is_branch_with_id (id : nat) (t: VirtualTree) : bool :=
     match t with
     | Seed => false
-    | Root c => is_branch_with_id id c
     | Node _ c => is_branch_with_id id c
     | Branch _ _ => false
     | Leaf i => Nat.eqb i id
@@ -109,7 +101,6 @@ Module VT (Data : CDATA).
   Fixpoint delete_in_tree (id : nat) (t: VirtualTree) : VirtualTree :=
     match t with
     | Seed => Seed
-    | Root c => Root (delete_in_tree id c)
     | Node d c =>
         let c' := delete_in_tree id c in
         match c' with
@@ -117,7 +108,6 @@ Module VT (Data : CDATA).
         | Branch _ _ => Node d c'
         | Node d'' c'' => Node (Data.compress d d'') c''
         | Leaf i => Node d c'
-        | _ => t
         end
     | Branch l r => if (is_branch_with_id id l) (*could define it like node instead *)
                     then r
