@@ -45,6 +45,14 @@ Module VT (Data : CDATA).
   Definition is_valid_tree (t: VirtualTree) : Prop :=
     is_valid_tree_structure t /\ is_valid_tree_ids t.
 
+  Fixpoint is_valid_id (t: VirtualTree) (id: nat) : Prop :=
+    match t with
+    | Seed => False
+    | Node _ c => is_valid_id c id
+    | Branch l r => is_valid_id l id \/ is_valid_id r id
+    | Leaf i => i = id
+    end.
+
   Fixpoint max_id_in_tree (t: VirtualTree) : nat :=
     match t with
     | Seed => 0 (*removed the option for cleaner split *)
@@ -203,18 +211,84 @@ Module VT (Data : CDATA).
     | _ => false
     end.
 
-
-
   (* Keep seed (for now), remove counter *)
   (* Proving todo *)
 
   (* Insert : insert seed -> seed
-    is_invalid_state and is_valid input id, get on id = compress (get id oldtree, new data) /\ get on i not id = same as before, is_valid new tree *)
+    is_valid_state and is_valid input id, get on id = compress (get id oldtree, new data) /\ get on i not id = same as before, is_valid new tree *)
+  Lemma insert_correct0 : forall t p id d, (*might skip the t/p thing, and just use s*)
+      is_valid_state (t, p) ->
+      is_valid_id t id ->
+      is_valid_state (insert id d (t, p)).
+  Admitted.
+  
+  Lemma insert_correct1 : forall t p id d c_old c_new,
+      is_valid_state (t, p) ->
+      is_valid_id t id ->
+      get_compressed_data id (t, p) = Some c_old -> (* case where data already existed for id *)
+      get_compressed_data id (insert id d (t, p)) = Some c_new /\
+        c_new = Data.compress d c_old. (* TODO check compress order*)
+  Admitted.
+
+  Lemma insert_correct2 : forall t p id d c,
+      is_valid_state (t, p) ->
+      is_valid_id t id ->
+      get_compressed_data id (t, p) = None ->
+      get_compressed_data id (insert id d (t, p)) = Some c.
+  Admitted.
+   
+  Lemma insert_correct3 : forall t p i j d o,
+      is_valid_state (t, p) ->
+      is_valid_id t i ->
+      i <> j ->
+      get_compressed_data j (t, p) = o ->
+      get_compressed_data j (insert i d (t, p)) = o.
+  Admitted.
 
   (* split: is valid old state, is valid id -> is valid new state and is valid id and new id on new state *)
   (* get on id = get on new id *) (* get on other ids unchanged *)
+  Lemma split_correct0 : forall t p id,
+      is_valid_state (t, p) ->
+      is_valid_id t id ->
+      let (s', j) := split id (t, p) in
+      is_valid_state s' /\ is_valid_id (tree s') j.
+  Admitted.
+
+  Lemma split_correct1 : forall t p i o,
+      is_valid_state (t, p) ->
+      is_valid_id t i ->
+      get_compressed_data i (t, p) = o ->
+      let (s', j) := split i (t, p) in
+      get_compressed_data i s' = o /\ get_compressed_data j s' = o.
+  Admitted.
+
+  Lemma split_correct2: forall t p i j o, (*might merge this one with the previous one *)
+      is_valid_state (t, p) ->
+      is_valid_id t i ->
+      let (s', k) := split i (t, p) in
+      i <> j ->
+      k <> j ->
+      get_compressed_data j (t, p) = o ->
+      get_compressed_data j s' = o.
+  Admitted.
 
   (* delete : preconds -> not is valid id on new tree, get on all other ids unchanged. *)
+
+  Lemma delete_correct0 : forall t p id,
+    is_valid_state (t, p) ->
+    is_valid_id t id ->
+    let s' := delete id (t, p) in
+    is_valid_state s' /\ not (is_valid_id (tree s') id).
+  Admitted.
+
+  Lemma delete_correct2 : forall t p i j o,
+      is_valid_state (t, p) ->
+      is_valid_id t i ->
+      i <> j ->
+      get_compressed_data j (t, p) = o ->
+      let s' := delete i (t, p) in
+      get_compressed_data j s' = o.
+  Admitted.
 
   (* TODO add to validity: define validity for CData and check for each node *)
 
