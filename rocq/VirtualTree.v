@@ -45,43 +45,42 @@ Module VT (Data : CDATA).
   Definition is_valid_tree (t: VirtualTree) : Prop :=
     is_valid_tree_structure t /\ is_valid_tree_ids t.
 
-  Fixpoint max_id_in_tree (t: VirtualTree) : option nat :=
+  Fixpoint max_id_in_tree (t: VirtualTree) : nat :=
     match t with
-    | Seed => None
+    | Seed => 0 (*removed the option for cleaner split *)
     | Node _ c => max_id_in_tree c
-    | Branch l r => match (max_id_in_tree l), (max_id_in_tree r) with
+    | Branch l r => Nat.max (max_id_in_tree l) (max_id_in_tree r)
+    (*match (max_id_in_tree l), (max_id_in_tree r) with
                     | Some vl, Some vr => Some (Nat.max vl vr)
                     | Some vl, _ => Some vl
                     | _, Some vr => Some vr
                     | _, _ => None
-                    end
-    | Leaf i => Some i
+                    end*)
+    | Leaf i => i
     end.
     
 
   (* Type state: counter + tree (+ param ?) *)
   (* Define validity for a state *)
 
-  Definition State := (VirtualTree * nat * Data.p)%type.
+  Definition State := (VirtualTree * Data.p)%type. (* TODO remove counter *)
 
   Definition tree (s: State) : VirtualTree :=
     match s with
-    | (t, _, _) => t
+    | (t, _) => t
     end.
-  Definition cnt (s: State) : nat :=
+  (*Definition cnt (s: State) : nat :=
     match s with
     | (_, c, _) => c
-    end.
+    end.*)
   Definition param (s: State) : Data.p :=
     match s with
-    | (_, _, p) => p
+    | (_, p) => p
     end.
 
   (* TODO : is_valid_state : max index in tree is less that counter, and tree is valid *)
   Definition is_valid_state (s: State) : Prop :=
-    is_valid_tree_structure (tree s) /\ is_valid_tree_ids (tree s)
-    /\ ((exists id, max_id_in_tree (tree s) = Some id /\ id < (cnt s))
-        \/ max_id_in_tree (tree s) = None).
+    is_valid_tree_structure (tree s) /\ is_valid_tree_ids (tree s).
   
 
   Definition is_leaf_with_id (t: VirtualTree) (id: nat) : bool :=
@@ -91,10 +90,10 @@ Module VT (Data : CDATA).
     end.
 
   Definition empty (param: Data.p) : State :=
-    (Seed, 1, param).
+    (Seed, param).
 
   Definition with_one_leaf (param: Data.p) : State :=
-    (Leaf 0, 1, param).
+    (Leaf 0, param).
 
   Fixpoint insert_in_tree (id: nat) (new: Data.t) (t: VirtualTree) : VirtualTree :=
     match t with
@@ -111,7 +110,7 @@ Module VT (Data : CDATA).
     end.
 
   Definition insert (id: nat) (new : Data.t) (s: State) : State :=
-    (insert_in_tree id new (tree s), cnt s, param s).
+    (insert_in_tree id new (tree s), param s).
 
   Fixpoint split_in_tree (id: nat) (new_id: nat) (t: VirtualTree) : VirtualTree :=
     match t with
@@ -124,7 +123,9 @@ Module VT (Data : CDATA).
     end.
 
   Definition split (id: nat) (s: State) : State * nat :=
-    ((split_in_tree id (cnt s) (tree s), (cnt s) + 1, param s), cnt s).
+    let t:= tree s in
+    let new_id := (max_id_in_tree t) + 1 in
+    ((split_in_tree id new_id t, param s), new_id).
 
   Fixpoint is_branch_with_id (id : nat) (t: VirtualTree) : bool :=
     match t with
@@ -156,7 +157,7 @@ Module VT (Data : CDATA).
     end.
 
   Definition delete (id: nat) (s: State) :=
-    (delete_in_tree id (tree s), cnt s, param s).
+    (delete_in_tree id (tree s), param s).
 
   Inductive triple_option (A: Type) :=
   | TNone
@@ -201,5 +202,20 @@ Module VT (Data : CDATA).
     | Seed => true
     | _ => false
     end.
+
+
+
+  (* Keep seed (for now), remove counter *)
+  (* Proving todo *)
+
+  (* Insert : insert seed -> seed
+    is_invalid_state and is_valid input id, get on id = compress (get id oldtree, new data) /\ get on i not id = same as before, is_valid new tree *)
+
+  (* split: is valid old state, is valid id -> is valid new state and is valid id and new id on new state *)
+  (* get on id = get on new id *) (* get on other ids unchanged *)
+
+  (* delete : preconds -> not is valid id on new tree, get on all other ids unchanged. *)
+
+  (* TODO add to validity: define validity for CData and check for each node *)
 
 End VT.
