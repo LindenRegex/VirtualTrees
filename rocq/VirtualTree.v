@@ -103,22 +103,22 @@ Module VT (Data : CDATA).
   Definition with_one_leaf (param: Data.p) : State :=
     (Leaf 0, param).
 
-  Fixpoint insert_in_tree (id: nat) (new: Data.t) (t: VirtualTree) : VirtualTree :=
+  Fixpoint insert_in_tree (id: nat) (new: Data.t) (t: VirtualTree) (p: Data.p) : VirtualTree :=
     match t with
     | Seed => Seed
     | Node d c => if is_leaf_with_id c id
-                  then Node (Data.compress d new) c
-                  else Node d (insert_in_tree id new c)
+                  then Node (Data.compress p d new) c
+                  else Node d (insert_in_tree id new c p)
     | Branch l r => if is_leaf_with_id l id
                     then Branch (Node new l) r
                     else if is_leaf_with_id r id
                          then Branch l (Node new r)
-                         else Branch (insert_in_tree id new l) (insert_in_tree id new r)
+                         else Branch (insert_in_tree id new l p) (insert_in_tree id new r p)
     | Leaf i => t
     end.
 
   Definition insert (id: nat) (new : Data.t) (s: State) : State :=
-    (insert_in_tree id new (tree s), param s).
+    (insert_in_tree id new (tree s) (param s), param s).
 
   Fixpoint split_in_tree (id: nat) (new_id: nat) (t: VirtualTree) : VirtualTree :=
     match t with
@@ -143,29 +143,29 @@ Module VT (Data : CDATA).
     | Leaf i => Nat.eqb i id
     end.
 
-  Fixpoint delete_in_tree (id : nat) (t: VirtualTree) : VirtualTree :=
+  Fixpoint delete_in_tree (id : nat) (t: VirtualTree) (p: Data.p) : VirtualTree :=
     match t with
     | Seed => Seed
     | Node d c =>
-        let c' := delete_in_tree id c in
+        let c' := delete_in_tree id c p in
         match c' with
         | Seed => Seed
         | Branch _ _ => Node d c'
-        | Node d'' c'' => Node (Data.compress d d'') c''
+        | Node d'' c'' => Node (Data.compress p d d'') c''
         | Leaf i => Node d c'
         end
     | Branch l r => if (is_branch_with_id id l) (*could define it like node instead *)
                     then r
                     else if (is_branch_with_id id r)
                          then l
-                         else Branch (delete_in_tree id l) (delete_in_tree id r)
+                         else Branch (delete_in_tree id l p) (delete_in_tree id r p)
     | Leaf i => if Nat.eqb i id
                 then Seed
                 else Leaf i
     end.
 
   Definition delete (id: nat) (s: State) :=
-    (delete_in_tree id (tree s), param s).
+    (delete_in_tree id (tree s) (param s), param s).
 
   Inductive triple_option (A: Type) :=
   | TNone
@@ -175,18 +175,19 @@ Module VT (Data : CDATA).
   Arguments TEmpty {A}.
   Arguments TSome {A}.
 
-  Fixpoint get_compressed_data_in_tree (id: nat) (t: VirtualTree) : triple_option Data.t :=
+  (* TODO redefine top down *)
+  Fixpoint get_compressed_data_in_tree (id: nat) (t: VirtualTree) (p: Data.p): triple_option Data.t :=
     match t with
     | Seed => TNone
     | Node d c =>
-        match get_compressed_data_in_tree id c with
+        match get_compressed_data_in_tree id c p with
         | TNone => TNone
         | TEmpty => TSome d
-        | TSome v => TSome (Data.compress d v)
+        | TSome v => TSome (Data.compress p d v)
         end
     | Branch l r =>
-        match (get_compressed_data_in_tree id l) with
-        | TNone => match (get_compressed_data_in_tree id r) with
+        match (get_compressed_data_in_tree id l p) with
+        | TNone => match (get_compressed_data_in_tree id r p) with
                   | TNone => TNone
                   | TEmpty => TEmpty
                   | TSome v => TSome v
@@ -200,7 +201,7 @@ Module VT (Data : CDATA).
     end.
 
   Definition get_compressed_data (id:nat) (s: State) : option Data.t :=
-    match get_compressed_data_in_tree id (tree s) with
+    match get_compressed_data_in_tree id (tree s) (param s) with
     | TSome v => Some v
     | _ => None
     end.
@@ -227,7 +228,7 @@ Module VT (Data : CDATA).
       is_valid_id t id ->
       get_compressed_data id (t, p) = Some c_old -> (* case where data already existed for id *)
       get_compressed_data id (insert id d (t, p)) = Some c_new /\
-        c_new = Data.compress d c_old. (* TODO check compress order*)
+        c_new = Data.compress p d c_old. (* TODO check compress order*)
   Admitted.
 
   Lemma insert_correct2 : forall t p id d c,
