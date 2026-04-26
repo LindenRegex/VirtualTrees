@@ -1,13 +1,13 @@
 
 Module Type CDATA.
 
-  Parameter t : Set.
+  Parameter t : Type.
 
   Parameter p : Set.
 
   Parameter compress : p -> t -> t -> t.
 
-  Parameter is_valid: t -> Prop.
+  Parameter is_valid: p -> t -> Prop.
 
   (* TODO: add some axioms *)
   

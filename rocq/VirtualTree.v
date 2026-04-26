@@ -7,7 +7,7 @@ Import ListNotations.
 Module VT (Data : CDATA).
   Import Data.
 
-  Inductive VirtualTree : Set := (* the actal tree with root, branch, node and leaf *)
+  Inductive VirtualTree : Type := (* the actal tree with root, branch, node and leaf *)
   | Seed
   | Node (data: Data.t) (child: VirtualTree)
   | Branch (l: VirtualTree) (r: VirtualTree)
