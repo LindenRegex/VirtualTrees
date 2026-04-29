@@ -1,7 +1,7 @@
 
 Require Import CData.
 
-From Stdlib Require Import List.
+From Stdlib Require Import Arith Lia List.
 Import ListNotations.
 
 Module VT (Data : CDATA).
@@ -126,7 +126,7 @@ Module VT (Data : CDATA).
     | Node d c => Node d (split_in_tree id new_id c)
     | Branch l r => Branch (split_in_tree id new_id l) (split_in_tree id new_id r)
     | Leaf i => if Nat.eqb i id
-                then Branch (Leaf i) (Leaf id)
+                then Branch (Leaf i) (Leaf new_id)
                 else Leaf i
     end.
 
@@ -217,12 +217,53 @@ Module VT (Data : CDATA).
 
   (* Insert : insert seed -> seed
     is_valid_state and is_valid input id, get on id = compress (get id oldtree, new data) /\ get on i not id = same as before, is_valid new tree *)
-  Lemma insert_correct0 : forall t p id d, (*might skip the t/p thing, and just use s*)
+  
+  (* the output state of insert is a valid state *)
+  Lemma insert_valid : forall t p id d, (*might skip the t/p thing, and just use s*)
       is_valid_state (t, p) ->
       is_valid_id t id ->
       is_valid_state (insert id d (t, p)).
+  Proof.
+    intros t. induction t; intros p i d Hs Hi.
+    - unfold insert.
+      simpl.
+      assumption.
+    - unfold insert in *.
+      simpl in *.
+      destruct (is_leaf_with_id t0 i) eqn:L.
+      (* TODO compress result is valid *)
+      + unfold is_valid_state. unfold is_valid_state in Hs.
+        destruct Hs as [Hs His]. simpl in *.
+        split.
+        * assumption.
+        * unfold is_valid_tree_ids. unfold is_valid_tree_ids in His.
+          simpl in *.
+          assumption.
+      + unfold is_valid_state. unfold is_valid_state in Hs.
+        destruct Hs as [Hs His]. simpl in *.
+        split.
+        * destruct (insert_in_tree i d t0 p) eqn:Ti.
+          -- admit. (* TODO: prove Ti cannot be Seed*)
+          -- admit. (*TODO: prove Ti cannot be Node *)
+          -- rewrite <- Ti.
+             apply IHt; try assumption.
+             unfold is_valid_state; simpl; split.
+             ++ destruct t0; try contradiction; try assumption.
+             ++ unfold is_valid_tree_ids in *. simpl in *. assumption.
+          -- simpl. auto.
+        * unfold is_valid_tree_ids. simpl.
+          apply IHt.
+          -- destruct t0; try contradiction.
+             ++ unfold is_valid_state. unfold tree; split; try assumption.
+             ++ unfold is_valid_state; simpl; split; auto.
+          -- assumption.
+    - unfold insert. simpl.
+      destruct (is_leaf_with_id t1 i) eqn:L1; admit.
+    - unfold insert. simpl.
+      assumption.
   Admitted.
-  
+
+  (* when inserting for i, the new data for i is the compression of the compressed old data for i and the new data *)
   Lemma insert_correct1 : forall t p id d c_old c_new,
       is_valid_state (t, p) ->
       is_valid_id t id ->
@@ -231,13 +272,15 @@ Module VT (Data : CDATA).
         c_new = Data.compress p d c_old. (* TODO check compress order*)
   Admitted.
 
+  (* when inserting for i with no data, the new data for i is the inserted data *)
   Lemma insert_correct2 : forall t p id d c,
       is_valid_state (t, p) ->
       is_valid_id t id ->
       get_compressed_data id (t, p) = None ->
       get_compressed_data id (insert id d (t, p)) = Some c.
   Admitted.
-   
+
+  (* the data for all other leaves is unchanged *)
   Lemma insert_correct3 : forall t p i j d o,
       is_valid_state (t, p) ->
       is_valid_id t i ->
@@ -246,15 +289,50 @@ Module VT (Data : CDATA).
       get_compressed_data j (insert i d (t, p)) = o.
   Admitted.
 
+  Lemma no_dup_one {A} : forall (x: A),
+      NoDup [x].
+  Proof.
+    intros x.
+    constructor.
+    - intros H.
+      apply in_nil in H.
+      contradiction.
+    - constructor.
+  Qed.
+
   (* split: is valid old state, is valid id -> is valid new state and is valid id and new id on new state *)
   (* get on id = get on new id *) (* get on other ids unchanged *)
-  Lemma split_correct0 : forall t p id,
+
+  (* the output state of split is valid, and the new id is valid on that tree *)
+  Lemma split_valid : forall t p id,
       is_valid_state (t, p) ->
       is_valid_id t id ->
       let (s', j) := split id (t, p) in
       is_valid_state s' /\ is_valid_id (tree s') j.
+  Proof.
+    intros t. induction t; intros p i Hs Hi.
+    - simpl in *. contradiction.
+    - simpl. (* TODO: need split result is either branch or what was before *)
+      split.
+      + unfold is_valid_state. simpl. admit.
+      + admit.
+    - simpl. admit.
+    - simpl.
+      destruct (Nat.eqb id i) eqn:I; split; simpl.
+      + unfold is_valid_state.
+        split; simpl; try auto.
+        unfold is_valid_tree_ids. simpl.
+        constructor.
+        * intros H. inversion H; subst; try lia.
+          apply in_nil in H0. contradiction.
+        * apply no_dup_one.
+      + right. reflexivity.
+      + assumption.
+      + unfold is_valid_id in Hi.
+        apply Nat.eqb_neq in I. lia.    
   Admitted.
 
+  (* when splitting a leaf i, the resulting new leaves have the same compressed data as i *)
   Lemma split_correct1 : forall t p i o,
       is_valid_state (t, p) ->
       is_valid_id t i ->
@@ -263,6 +341,7 @@ Module VT (Data : CDATA).
       get_compressed_data i s' = o /\ get_compressed_data j s' = o.
   Admitted.
 
+  (* when splitting leaf i, all other leaves have unchanged data *)
   Lemma split_correct2: forall t p i j o, (*might merge this one with the previous one *)
       is_valid_state (t, p) ->
       is_valid_id t i ->
@@ -275,7 +354,8 @@ Module VT (Data : CDATA).
 
   (* delete : preconds -> not is valid id on new tree, get on all other ids unchanged. *)
 
-  Lemma delete_correct0 : forall t p id,
+  (* the output of delete is valid, and the id of the delete leaf is invalid on that tree *)
+  Lemma delete_valid : forall t p id,
     is_valid_state (t, p) ->
     is_valid_id t id ->
     let s' := delete id (t, p) in

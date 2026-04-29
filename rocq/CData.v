@@ -10,6 +10,12 @@ Module Type CDATA.
   Parameter is_valid: p -> t -> Prop.
 
   (* TODO: add some axioms *)
+
+  (* validity after compression *)
+  Axiom compress_valid : forall x y (p: p),
+      is_valid p x ->
+      is_valid p y ->
+      is_valid p (compress p x y).
   
   (* associativity *)
   Axiom compress_assoc : forall (x y z : t) (param: p),
