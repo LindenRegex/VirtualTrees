@@ -28,8 +28,12 @@ Module Array.
     | y :: xs, S i' => y :: set xs i' x
     end.
 
-  Definition zipWith {A} {B} {C} (a : t A) (b: t B) (f : (A * B) -> C) : t C :=
-    map f (combine a b).
+  Fixpoint zipWith {A} {B} {C} (a: t A) (b: t B) (f : A -> B -> C) : t C :=
+    match a, b with
+    | [], _ => []
+    | _, [] => []
+    | a0 :: a', b0 :: b' => (f a0 b0) :: (zipWith a' b' f)
+    end.
 
   (* Properties *)
 
@@ -97,13 +101,29 @@ Module Array.
         lia.
   Qed.
 
-  Lemma zipWith_length {A} {B} {C} : forall (a : t A) (b : t B) (f : (A * B) -> C),
+  Lemma zipWith_length {A} {B} {C} : forall (a : t A) (b : t B) (f : A -> B -> C),
       length (zipWith a b f) = min (length a) (length b).
   Proof.
-    intros.
-    unfold zipWith.
-    rewrite length_map.
-    apply length_combine.
+    induction a; intros b f; simpl.
+    - reflexivity.
+    - destruct b eqn:Bl; simpl.
+      + reflexivity.
+      + rewrite IHa.
+        reflexivity.
+  Qed.
+
+  Lemma zipWith_assoc {A} : forall (a b c: t A) (f : A -> A -> A),
+      (forall x y z, f x (f y z) = f (f x y) z) ->
+      zipWith a (zipWith b c f) f = zipWith (zipWith a b f) c f.
+  Proof.
+    induction a; intros b c f Hf; simpl.
+    - reflexivity.
+    - destruct b eqn:B; simpl.
+      + reflexivity.
+      + destruct c eqn:C.
+        * reflexivity.
+        * rewrite Hf.
+          rewrite IHa; auto.
   Qed.
 
 End Array.
@@ -138,12 +158,21 @@ Module RegsData : CDATA.
 
   (* a1 is older than a2 -> overwrite a1 with a2 
    don't overwrite if a2 element is None *)
+  Definition get_most_recent (old new : val) : val :=
+    match new with
+    | None => old
+    | Some _ => new
+    end.
+
+  Lemma get_most_recent_assoc : forall x y z,
+      get_most_recent x (get_most_recent y z) = get_most_recent (get_most_recent x y) z.
+  Proof.
+    intros x y z.
+    destruct z; destruct y; simpl; reflexivity.
+  Qed.
+  
   Definition merge_arrays (a1 a2 : Array.t val) : Array.t val :=
-    Array.zipWith a1 a2 (fun x =>
-                           match x with
-                           | (x1, None) => x1
-                           | (_, Some v) => Some v
-                           end).
+    Array.zipWith a1 a2 get_most_recent.
 
   (* list is more recent than arrays
      closer to start of list => more recent 
@@ -322,13 +351,15 @@ Module RegsData : CDATA.
           destruct Hx as [_ Hx]. destruct Hy as [_ Hy].
           split; assumption.
   Qed.
-      
+  
   Lemma merge_arrays_assoc : forall x y z,
       merge_arrays x (merge_arrays y z) = merge_arrays (merge_arrays x y) z.
   Proof.
     intros x y z.
     unfold merge_arrays.
-  Admitted.
+    apply Array.zipWith_assoc.
+    apply get_most_recent_assoc.
+  Qed.
 
   Lemma compress_assoc : forall x y z p,
       compress p x (compress p y z) = compress p (compress p x y) z.
