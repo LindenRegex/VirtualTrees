@@ -171,8 +171,8 @@ Module RegsData : CDATA.
     destruct z; destruct y; simpl; reflexivity.
   Qed.
   
-  Definition merge_arrays (a1 a2 : Array.t val) : Array.t val :=
-    Array.zipWith a1 a2 get_most_recent.
+  Definition merge_arrays (a_old a_new : Array.t val) : Array.t val :=
+    Array.zipWith a_old a_new get_most_recent.
 
   (* list is more recent than arrays
      closer to start of list => more recent 
