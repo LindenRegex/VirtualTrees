@@ -69,6 +69,34 @@ Module VT (Data : CDATA).
     | Leaf i => i = id
     end.
 
+  Lemma valid_in_ids : forall t id,
+      is_valid_id t id <-> In id (get_all_ids t).
+  Proof.
+    intros t0 i; induction t0; split; intros H; simpl in *; auto.
+    - apply IHt0.
+      assumption.
+    - apply IHt0.
+      auto.
+    - apply in_app_iff.
+      destruct H as [H1 | H2].
+      + left.
+        apply IHt0_1.
+        auto.
+      + right.
+        apply IHt0_2.
+        auto.
+    - apply in_app_iff in H.
+      destruct H as [Hl | Hr].
+      + left.
+        apply IHt0_1.
+        auto.
+      + right.
+        apply IHt0_2.
+        auto.
+    - destruct H; auto.
+      contradiction.
+  Qed.
+
   Lemma contains_valid_id : forall t id,
       contains_id t id = true <-> is_valid_id t id.
   Proof.
@@ -261,7 +289,7 @@ Module VT (Data : CDATA).
 
   Fixpoint get_compressed_data_in_tree' (id: nat) (t: VirtualTree) (p: Data.p) (acc: option Data.t): option Data.t :=
     match t with
-    | Seed => None
+    | Seed => acc
     | Node d c =>
         let acc' := match acc with
                     | Some a => Some (Data.compress p a d)
@@ -407,16 +435,17 @@ Module VT (Data : CDATA).
   Qed.
 
   (* when inserting for i, the new data for i is the compression of the compressed old data for i and the new data *)
-  Lemma insert_correct1 : forall t p id d c_old c_new,
+  Lemma insert_get_some : forall t p id d c_old c_new,
       is_valid_state (t, p) ->
       is_valid_id t id ->
       get_compressed_data id (t, p) = Some c_old -> (* case where data already existed for id *)
       get_compressed_data id (insert id d (t, p)) = Some c_new /\
         c_new = Data.compress p d c_old. (* TODO check compress order*)
-  Admitted.
+  Proof.
+    Admitted.
 
   (* when inserting for i with no data, the new data for i is the inserted data *)
-  Lemma insert_correct2 : forall t p id d c,
+  Lemma insert_get_none : forall t p id d c,
       is_valid_state (t, p) ->
       is_valid_id t id ->
       get_compressed_data id (t, p) = None ->
@@ -453,6 +482,43 @@ Module VT (Data : CDATA).
     - apply no_dup_one.
   Qed.
 
+  Lemma no_dup_remove {A} : forall l l' (a: A),
+      ~ In a l ->
+      ~ In a l' ->
+      NoDup (l ++ l') ->
+      NoDup (l ++ a :: l').
+  Proof.
+    induction l; intros l' b Ha Ha' H; simpl in *; auto.
+    - constructor; auto.
+    - apply NoDup_cons_iff in H. destruct H as [H H'].
+      constructor.
+      + intros C.
+        rewrite in_app_iff in *.
+        destruct C as [C | C].
+        * tauto.
+        * apply in_inv in C.
+          destruct C as [C | C]; try symmetry in C; tauto.
+      + apply IHl; auto.
+  Qed.
+
+
+  Lemma no_dup_in_app {A} : forall l l' (a: A),
+      NoDup (l ++ l') ->
+      In a l ->
+      ~ In a l'.
+  Proof.
+    induction l; intros l' b H Ha; simpl.
+    - inversion Ha.
+    - rewrite <- app_comm_cons in H.
+      apply NoDup_cons_iff in H. destruct H as [Hi H].
+      apply in_inv in Ha.
+      destruct Ha as [Ha | Ha].
+      + rewrite Ha in *.
+        rewrite in_app_iff in Hi.
+        tauto.
+      + apply IHl; auto.
+  Qed.
+
   (* split: is valid old state, is valid id -> is valid new state and is valid id and new id on new state *)
   (* get on id = get on new id *) (* get on other ids unchanged *)
 
@@ -472,17 +538,14 @@ Module VT (Data : CDATA).
     - contradiction.
     - auto.
     - destruct (contains_id t0_1 i) eqn:I; simpl in *.
-      + Search (Permutation (_ ++ _) _).
-        Search (_ :: _ ++ _).
-        rewrite app_comm_cons.
+      + rewrite app_comm_cons.
         apply Permutation_app.
         * apply IHt0_1. 
           -- tauto.
           -- apply contains_valid_id.
              assumption.
         * apply Permutation_refl.
-      + Search (_ :: _ ++ _).
-        econstructor.
+      + econstructor.
         * eapply Permutation_middle.
         * apply Permutation_app.
           -- apply Permutation_refl.
@@ -493,6 +556,21 @@ Module VT (Data : CDATA).
     - rewrite H. rewrite Nat.eqb_refl.
       simpl.
       constructor.
+  Qed.
+
+  Lemma split_on_invalid_id: forall t i i',
+      ~ is_valid_id t i ->
+      t = split_in_tree i i' t.
+  Proof.
+    intros t i i'; induction t; intros H; simpl in *; auto.
+    - rewrite <- IHt; auto.
+    - destruct (contains_id t1 i).
+      + rewrite <- IHt1; try tauto.
+      + rewrite <- IHt2; try tauto.
+    - destruct (id =? i) eqn:I.
+      + apply Nat.eqb_eq in I.
+        congruence.
+      + reflexivity.
   Qed.
 
   Lemma split_valid_ids: forall t i i',
@@ -506,7 +584,28 @@ Module VT (Data : CDATA).
       auto.
     - unfold is_valid_tree_ids in *; simpl in *.
       destruct (contains_id t1 i) eqn:I; simpl.
-      + 
+      + eapply Permutation_NoDup.
+        * eapply Permutation_app_tail.
+          eapply split_ids; try tauto.
+          apply contains_valid_id.
+          assumption.
+        * rewrite <- app_comm_cons.
+          apply NoDup_cons; try auto.
+          rewrite in_app_iff.
+          repeat rewrite <- valid_in_ids.
+          tauto.
+      + destruct (contains_id t2 i) eqn:I2.
+        * eapply Permutation_NoDup.
+          -- eapply Permutation_app_head.
+             apply split_ids; try tauto.
+             apply contains_valid_id.
+             assumption.
+          -- apply no_dup_remove;
+               try rewrite <- valid_in_ids;
+               tauto.
+        * erewrite <- split_on_invalid_id; auto.
+          apply not_contains_valid_id.
+          auto.
     - destruct (id =? i).
       unfold is_valid_tree_ids in *; simpl in *.
       + unfold not in Hin.
@@ -517,7 +616,7 @@ Module VT (Data : CDATA).
           apply no_dup_two.
           auto.
       + assumption.
-  Admitted.
+  Qed.
       
   Lemma split_valid_data: forall t p i i',
       is_valid_tree_data t p ->
@@ -528,7 +627,9 @@ Module VT (Data : CDATA).
     - destruct H as [Hd Hc].
       split; auto.
     - destruct H as [H1 H2].
-      split; auto.
+      destruct (contains_id t1 i);
+        split;
+        auto.
     - destruct (id =? i); simpl; tauto.
   Qed.
 
@@ -539,7 +640,11 @@ Module VT (Data : CDATA).
     intros t; induction t; intros i i' H; simpl in *.
     - contradiction.
     - auto.
-    - destruct H as [H1 | H2]; auto.
+    - destruct H as [H1 | H2];
+        destruct (contains_id t1 i) eqn:I;
+        try apply contains_valid_id in I;
+        simpl; auto.
+        apply not_contains_valid_id in I; contradiction.
     - rewrite H.
       rewrite Nat.eqb_refl.
       simpl.
@@ -579,8 +684,9 @@ Module VT (Data : CDATA).
     intros t. induction t; intros param i i' j o H; simpl in *.
     - reflexivity.
     - destruct o; simpl; auto.
-    - rewrite IHt1 by assumption. rewrite IHt2 by assumption.
-      reflexivity.
+    - destruct (contains_id t1 i) eqn:I; simpl;
+        [rewrite IHt1 by assumption | rewrite IHt2 by assumption];
+        reflexivity.
     - destruct (id =? i) eqn:I; simpl.
       + destruct (id =? j).
         * destruct o.
@@ -592,15 +698,71 @@ Module VT (Data : CDATA).
       + destruct (id =? j); auto.
   Qed.
 
+  Lemma get_on_invalid_id : forall t p i o,
+      t <> Seed ->
+      is_valid_tree_structure t ->
+      ~ is_valid_id t i ->
+      get_compressed_data_in_tree' i t p o = None.
+  Proof.
+    intros t; induction t; intros param i o Ht Hs H;
+      simpl in *.
+    - congruence.
+    - apply IHt.
+      destruct o eqn:O; simpl.
+      + destruct t0; simpl; congruence.
+      + destruct t0; simpl; congruence.
+      + destruct t0; simpl; try contradiction.
+        * assumption.
+        * tauto.
+      + assumption.
+    - rewrite IHt1; simpl.
+      + apply IHt2.
+        * destruct t1, t2; simpl; try contradiction; try congruence.
+        * destruct t1, t2; simpl; tauto.
+        * tauto.
+      + destruct t1; simpl; try contradiction; congruence.
+      + destruct t1, t2; simpl; tauto.
+      + tauto.
+    - destruct (id =? i) eqn:I.
+      + apply Nat.eqb_eq in I.
+        congruence.
+      + reflexivity.
+  Qed.
+
+  (* i does not need to be valid, because the tree is unchanged if it is not *)
   Lemma split_get_new_leaf: forall t p i i' o,
       ~ is_valid_id t i' ->
+      is_valid_tree_ids t ->
+      is_valid_tree_structure t ->
       let t' := split_in_tree i i' t in
       get_compressed_data_in_tree' i' t' p o = get_compressed_data_in_tree' i t p o.
   Proof.
-    intros t. induction t; intros param i i' o H; simpl in *.
+    intros t. induction t; intros param i i' o H Hi Hs; simpl in *.
     - reflexivity.
-    - destruct o; simpl; auto.
-    - rewrite IHt1; try rewrite IHt2; auto.
+    - destruct o; simpl; apply IHt; auto;
+        destruct t0; try contradiction; auto.
+    - destruct (contains_id t1 i) eqn:I; simpl.
+      + rewrite IHt1.
+        * apply contains_valid_id in I.
+          repeat rewrite get_on_invalid_id with (t:=t2); auto.
+          1, 4: destruct t1, t2; simpl; try contradiction; congruence.
+          1, 3: destruct t1 eqn:T1, t2 eqn:T2; try contradiction; rewrite <- T2 in *; tauto.
+          -- unfold is_valid_tree_ids in *. simpl in *.
+             rewrite valid_in_ids in *.
+             eapply no_dup_in_app; eauto.
+        * apply contains_valid_id in I. auto.
+        * unfold is_valid_tree_ids in *; simpl in *.
+          eapply NoDup_app_remove_r; eauto.
+        * destruct t1 eqn:T1, t2 eqn:T2; try contradiction; rewrite <- T2 in *; tauto.
+      + rewrite IHt2.
+        * repeat rewrite get_on_invalid_id with (t:=t1); simpl; auto. 
+          1, 4: destruct t1; simpl; try contradiction; congruence.
+          1, 3: destruct t1 eqn:T1, t2 eqn:T2; try contradiction; rewrite <- T2 in *; tauto.
+          -- apply not_contains_valid_id; auto.
+        * apply not_contains_valid_id in I. auto.
+        * unfold is_valid_tree_ids in *; simpl in *.
+          eapply NoDup_app_remove_l; eauto.
+        * destruct t1 eqn:T1, t2 eqn:T2; try contradiction; rewrite <- T2 in *; tauto.
     - destruct (id =? i) eqn:I; simpl.
       + destruct (id =? i'); simpl.
         * destruct o; simpl.
@@ -617,29 +779,35 @@ Module VT (Data : CDATA).
   (* when splitting a leaf i, the resulting new leaves have the same compressed data as i *)
   Lemma split_get_new_leaves : forall t p i o,
       is_valid_state (t, p) ->
-      is_valid_id t i ->
       get_compressed_data i (t, p) = o ->
       let (s', j) := split i (t, p) in
       get_compressed_data i s' = o /\ get_compressed_data j s' = o.
   Proof.
     intros.
+    unfold is_valid_state in H.
     simpl.
     unfold get_compressed_data in *. simpl in *.
     split.
-    - rewrite split_get_unchanged.
-      + assumption.
-      + apply valid_id_is_leq_max in H0.
-        lia.
+    - destruct (contains_id t0 i) eqn:I; simpl.
+      + rewrite split_get_unchanged.
+        * assumption.
+        * apply contains_valid_id in I.
+          apply valid_id_is_leq_max in I.
+          lia.
+      + apply not_contains_valid_id in I.
+        rewrite <- split_on_invalid_id with (t:=t0); auto.
     - rewrite split_get_new_leaf.
       + assumption.
       + apply greater_than_max_is_invalid_id.
         lia.
+      + tauto.
+      + tauto.
   Qed.
 
   (* when splitting leaf i, all other leaves have unchanged data *)
+  (* if i is invalid, the tree does not change and the property still holds *)
   Lemma split_unchanged: forall t p i j o, (*might merge this one with the previous one *)
       is_valid_state (t, p) ->
-      is_valid_id t i ->
       let (s', k) := split i (t, p) in
       i <> j ->
       k <> j ->
@@ -649,13 +817,72 @@ Module VT (Data : CDATA).
     simpl.
     intros.
     unfold get_compressed_data in *. simpl in *.
-    rewrite split_get_unchanged.
-    - assumption.
-    - apply valid_id_is_leq_max in H0.
-      lia.
+    destruct (contains_id t0 i) eqn:I; simpl.
+    - rewrite split_get_unchanged.
+      + assumption.
+      + apply contains_valid_id in I.
+        apply valid_id_is_leq_max in I.
+        lia.
+    - apply not_contains_valid_id in I.
+      rewrite <- split_on_invalid_id with (t:=t0); auto.
   Qed.
 
   (* delete : preconds -> not is valid id on new tree, get on all other ids unchanged. *)
+
+  Lemma delete_ids : forall t p id,
+      incl (get_all_ids (delete_in_tree id t p)) (get_all_ids t).
+  Proof.
+    intros t; induction t; intros param i; simpl in *.
+    - apply incl_refl.
+    - admit.
+    - destruct (is_branch_with_id i t1); simpl.
+      + apply incl_appr.
+        apply incl_refl.
+      + destruct (is_branch_with_id i t2); simpl.
+        * apply incl_appl.
+          apply incl_refl.
+        * apply incl_app_app; auto.
+    - destruct (id =? i); simpl.
+      + apply incl_nil_l.
+      + apply incl_refl.
+  Admitted.
+
+  Lemma delete_valid_ids : forall t p id,
+      is_valid_tree_ids t ->
+      is_valid_tree_ids (delete_in_tree id t p).
+  Proof.
+    intros t; induction t; intros param i H; simpl in *; auto.
+    - destruct (delete_in_tree i t0 param) eqn:D; unfold is_valid_tree_ids in *; simpl in *; auto.
+      + constructor.
+      + (* v branch of orig tree *) admit.
+      + specialize (IHt param i). rewrite D in IHt. simpl in IHt.
+        apply IHt.
+        assumption.
+      + apply no_dup_one.
+    - unfold is_valid_tree_ids in *.
+      destruct (is_branch_with_id i t1); simpl in *.
+      + eapply NoDup_app_remove_l; eauto.
+      + destruct (is_branch_with_id i t2); simpl in *.
+        * eapply NoDup_app_remove_r; eauto.
+        * Search (NoDup _).
+      
+        
+  Lemma delete_valid_data : forall t p id,
+      is_valid_tree_data t p ->
+      is_valid_tree_data (delete_in_tree id t p) p.
+  Proof.
+    intros t; induction t; intros param i H; simpl in *; auto.
+    - destruct (delete_in_tree i t0 param) eqn:D; simpl in *; auto.
+      + (* TODO v is a branch of original tree -> all valid data *) admit. 
+      + (* TODO the only way for delete to be a branch is if it was a branch before *) admit.
+      + tauto.
+    - destruct (is_branch_with_id i t1).
+      + tauto.
+      + destruct (is_branch_with_id i t2).
+        * tauto.
+        * simpl.
+          split; [apply IHt1 | apply IHt2]; tauto.
+  Admitted.
 
   (* the output of delete is valid, and the id of the delete leaf is invalid on that tree *)
   Lemma delete_valid : forall t p id,
