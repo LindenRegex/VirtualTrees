@@ -865,6 +865,7 @@ Module VT (Data : CDATA).
       + destruct (is_branch_with_id i t2); simpl in *.
         * eapply NoDup_app_remove_r; eauto.
         * Search (NoDup _).
+  Admitted.
       
         
   Lemma delete_valid_data : forall t p id,
