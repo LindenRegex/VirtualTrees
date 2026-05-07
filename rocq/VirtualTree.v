@@ -522,11 +522,159 @@ Module VT (Data : CDATA).
   (* split: is valid old state, is valid id -> is valid new state and is valid id and new id on new state *)
   (* get on id = get on new id *) (* get on other ids unchanged *)
 
-  Print is_valid_state.
+  Lemma split_is_seed : forall t i i',
+      split_in_tree i i' t = Seed -> t = Seed.
+  Proof.
+    intros t i i' H.
+    destruct t; simpl in *; auto; try congruence.
+    - destruct (contains_id t1 i); congruence.
+    - destruct (id =? i); congruence.
+  Qed.
+
+  Lemma split_is_node : forall t i i' d c,
+      split_in_tree i i' t = Node d c ->
+      (exists c', t = Node d c' /\ c = split_in_tree i i' c').
+  Proof.
+    intros t i i' d c H.
+    destruct t; simpl in *; try congruence.
+    - exists t0.
+      injection H as Hd Hc. subst.
+      auto.
+    - destruct (contains_id t1 i); simpl; try congruence.
+    - destruct (id =? i); simpl; congruence.
+  Qed.
+
+  Lemma split_is_branch : forall t i i' l r,
+      split_in_tree i i' t = Branch l r ->
+      (exists l', t = Branch l' r /\ l = split_in_tree i i' l') \/
+        (exists r', t = Branch l r' /\ r = split_in_tree i i' r') \/
+        (t = Leaf i /\ l = Leaf i /\ r = Leaf i').
+  Proof.
+    intros t i i' l r H.
+    destruct t; simpl in *; try congruence.
+    - destruct (contains_id t1 i).
+      + left.
+        exists t1.
+        injection H as H1 H2. subst.
+        auto.
+      + right. left.
+        exists t2.
+        injection H as H1 H2. subst.
+        auto.
+    - right. right.
+      destruct (id =? i) eqn:I; try congruence.
+      injection H as Hl Hr. subst.
+      apply Nat.eqb_eq in I. subst.
+      auto.
+  Qed.
+
+  Lemma split_is_leaf : forall t i i' id,
+      split_in_tree i i' t = Leaf id ->
+      t = Leaf id.
+  Proof.
+    intros t i i' id H.
+    destruct t; simpl in *; try congruence.
+    - destruct (contains_id t1 i); simpl; try congruence.
+    - destruct (id0 =? i); simpl; try congruence.
+  Qed.
 
   Lemma split_valid_structure : forall t i i',
       is_valid_tree_structure t ->
       is_valid_tree_structure (split_in_tree i i' t).
+  Proof.
+    intros t. induction t; intros i i' H; simpl in *.
+    - tauto.
+    - destruct (split_in_tree i i' t0) eqn:S; simpl.
+      + apply split_is_seed in S.
+        rewrite S in H.
+        contradiction.
+      + apply split_is_node in S.
+        destruct S as [d' [S _]]. rewrite S in H.
+        contradiction.
+      + destruct t0; try contradiction.
+        * apply IHt with (i:=i) (i':=i') in H.
+          rewrite S in H. simpl in H.
+          assumption.
+        * simpl in S.
+          destruct (id =? i); simpl in S.
+          -- injection S as S1 S2. subst.
+             simpl. tauto.
+          -- congruence.
+      + tauto.
+    - destruct (contains_id t1 i) eqn:C.
+      + simpl.
+        destruct (split_in_tree i i' t1) eqn:S.
+        * apply split_is_seed in S.
+          rewrite S in H.
+          contradiction.
+        * apply split_is_node in S. 
+          destruct S as [d' [S S']]. rewrite S in H.
+          rewrite S'.
+          destruct t2; try contradiction; destruct H as [H1 H2]; split; auto.
+          -- simpl in H1.
+             simpl.
+             destruct (split_in_tree i i' d') eqn:AAA.
+             ++ admit.
+             ++ admit.
+             ++ admit.
+             ++ simpl. tauto.
+          -- simpl in H1.
+             simpl.
+             destruct (split_in_tree i i' d') eqn:AAA.
+             ++ admit.
+             ++ admit.
+             ++ admit.
+             ++ simpl. tauto.
+          -- simpl in H1.
+             simpl.
+             destruct (split_in_tree i i' d') eqn:AAA.
+             ++ admit.
+             ++ admit.
+             ++ admit.
+             ++ simpl. tauto.
+        * destruct t1; destruct t2; try contradiction; destruct H as [H H']; split; auto.
+          all: try simpl in S; try congruence.
+          1, 2, 3: admit.
+          1, 2, 3: destruct (id =? i); try congruence;
+          try injection S as S1 S2; subst; simpl; tauto.
+        * apply split_is_leaf in S. rewrite S in H.
+          assumption.
+      + simpl.
+        destruct t1; try contradiction.
+        * destruct (split_in_tree i i' t2) eqn:S.
+          -- admit.
+          -- admit.
+          -- apply split_is_branch in S. destruct S as [[l' [r' S]] | [St [Sl Sr]]].
+             ++ rewrite S in H.
+                admit.
+             ++ subst.
+                split; try tauto.
+                simpl. tauto.
+          -- apply split_is_leaf in S. subst.
+             assumption.
+        * destruct (split_in_tree i i' t2) eqn:S.
+          -- admit.
+          -- admit.
+          -- apply split_is_branch in S. destruct S as [[l' [r' S]] | [St [Sl Sr]]].
+             ++ rewrite S in H.
+                admit.
+             ++ subst.
+                split; try tauto.
+                simpl. tauto.
+          -- apply split_is_leaf in S. subst.
+             assumption.
+        * destruct (split_in_tree i i' t2) eqn:S.
+          -- admit.
+          -- admit.
+          -- apply split_is_branch in S. destruct S as [[l' [r' S]] | [St [Sl Sr]]].
+             ++ rewrite S in H.
+                admit.
+             ++ subst.
+                split; try tauto.
+                simpl. tauto.
+          -- apply split_is_leaf in S. subst.
+             assumption.
+    - destruct (id =? i); simpl; auto.
   Admitted.
 
   Lemma split_ids : forall t i i',
