@@ -409,6 +409,18 @@ Module VT (Data : CDATA).
     - tauto.
   Qed.
 
+
+  Print insert_in_tree.
+
+  Lemma insert_is_seed : forall t p id d,
+      insert_in_tree id d t p = Seed -> t = Seed.
+  Proof.
+    intros t p id d H.
+    destruct t; simpl in *; try congruence.
+    - destruct (is_leaf_with_id t0); simpl; congruence.
+    - destruct (is_leaf_with_id t1 id); try destruct (is_leaf_with_id t2 id); congruence.
+  Qed.
+
   Lemma insert_valid_structure : forall t p id d,
       is_valid_tree_structure t ->
       is_valid_tree_structure (insert_in_tree id d t p).
@@ -452,13 +464,54 @@ Module VT (Data : CDATA).
       get_compressed_data id (insert id d (t, p)) = Some c.
   Admitted.
 
+  Lemma insert_unchanged : forall t p i j d o o',
+      is_valid_state (t, p) ->
+      (*is_valid_id t i ->*)
+      i <> j ->
+      get_compressed_data_in_tree' j t p o' = o ->
+      get_compressed_data_in_tree' j (insert_in_tree i d t p) p o' = o.
+  Proof.
+    intros t; induction t;
+      intros param i j d o o' Hs Hij H;
+      (*destruct Hs as [Hs [Hids Hd]];*)
+      simpl in *.
+    - assumption.
+    - destruct (is_leaf_with_id t0 i) eqn:L; simpl.
+      + apply is_Leaf_with_id in L. subst. simpl.
+        apply Nat.eqb_neq in Hij.
+        rewrite Hij.
+        reflexivity.
+      + rewrite IHt with (o:= o); auto.
+        admit. (* TODO: prove node is valid state -> child is valid state *)
+    - destruct (is_leaf_with_id t1 i) eqn:Ll.
+      + apply is_Leaf_with_id in Ll. subst. simpl.
+        apply Nat.eqb_neq in Hij. rewrite Hij.
+        reflexivity.
+      + destruct (is_leaf_with_id t2 i) eqn:Lr.
+        * apply is_Leaf_with_id in Lr. subst. simpl.
+          apply Nat.eqb_neq in Hij. rewrite Hij.
+          reflexivity.
+        * simpl.
+          destruct (get_compressed_data_in_tree' j t1 param o') eqn:G1.
+          -- subst.
+             rewrite IHt1 with (o:=Some t0); auto.
+             admit. (*TODO prove branch valid then left valid *)
+          -- rewrite IHt1 with (o:=None); auto.
+             apply IHt2; auto.
+             admit.
+             admit.
+    - destruct (id =? j); auto.
+        
+  Admitted.
+
   (* the data for all other leaves is unchanged *)
-  Lemma insert_correct3 : forall t p i j d o,
+  Lemma insert_unchanged : forall t p i j d o,
       is_valid_state (t, p) ->
       is_valid_id t i ->
       i <> j ->
       get_compressed_data j (t, p) = o ->
       get_compressed_data j (insert i d (t, p)) = o.
+  Proof.
   Admitted.
 
   Lemma no_dup_one {A} : forall (x: A),
