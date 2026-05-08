@@ -963,11 +963,45 @@ Module VT (Data : CDATA).
 
   (*** Split: Validity of resulting state *)
 
+  Lemma split_is_not_seed : forall t i i',
+      t <> Seed -> (split_in_tree i i' t) <> Seed.
+  Proof.
+    intros t i i' H.
+    destruct t; simpl; try congruence.
+    - destruct (id =? i); congruence.
+  Qed.
+
   Lemma split_valid_structure : forall t i i',
       is_valid_tree_structure t ->
       is_valid_tree_structure (split_in_tree i i' t).
   Proof.
-  Admitted.
+    intros t i i'; induction t; intros Hs; auto.
+    - simpl split_in_tree.
+      simpl in Hs.
+      apply node_of_child_with_valid_structure.
+      + apply split_is_not_seed.
+        destruct t0; try contradiction; congruence.
+      + intros d' c'.
+        destruct (split_in_tree i i' t0) eqn:S; try congruence.
+        apply split_is_node in S. destruct S as [c'' [S1 S2]].
+        subst.
+        contradiction.
+      + apply IHt.
+        destruct t0; try contradiction; auto.
+    - simpl split_in_tree.
+      simpl in Hs.
+      apply branch_of_children_with_valid_structure.
+      + apply split_is_not_seed.
+        destruct t1; try contradiction; congruence.
+      + apply split_is_not_seed.
+        destruct t1, t2; try contradiction; congruence.
+      + apply IHt1.
+        apply branch_children_valid_struct in Hs. tauto.
+      + apply IHt2.
+        apply branch_children_valid_struct in Hs. tauto.
+    - simpl in *.
+      destruct (id =? i); simpl; auto.
+  Qed.
 
   Lemma split_ids : forall t i i',
       is_valid_tree_ids t ->
@@ -1215,6 +1249,8 @@ Module VT (Data : CDATA).
     - apply not_contains_valid_id in I.
       rewrite <- split_on_invalid_id with (t:=t0); auto.
   Qed.
+
+  (** Delete properties *)
 
   (* delete : preconds -> not is valid id on new tree, get on all other ids unchanged. *)
 
