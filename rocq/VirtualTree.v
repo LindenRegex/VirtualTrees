@@ -217,11 +217,6 @@ Module VT (Data : CDATA).
                   then Node (Data.compress p d new) c
                   else Node d (insert_in_tree id new c p)
     | Branch l r => Branch (insert_in_tree id new l p) (insert_in_tree id new r p)
-        (*if is_leaf_with_id l id
-                    then Branch (Node new l) r
-                    else if is_leaf_with_id r id
-                         then Branch l (Node new r)
-                         else Branch (insert_in_tree id new l p) (insert_in_tree id new r p)*)
     | Leaf i => if (i =? id)
                 then Node new (Leaf i)
                 else Leaf i
@@ -236,10 +231,10 @@ Module VT (Data : CDATA).
     match t with
     | Seed => Seed
     | Node d c => Node d (split_in_tree id new_id c)
-    | Branch l r =>
-        if (contains_id l id)
+    | Branch l r => Branch (split_in_tree id new_id l) (split_in_tree id new_id r)
+        (*if (contains_id l id)
         then Branch (split_in_tree id new_id l) r
-        else Branch l (split_in_tree id new_id r)
+        else Branch l (split_in_tree id new_id r)*)
     | Leaf i => if Nat.eqb i id
                 then Branch (Leaf i) (Leaf new_id)
                 else Leaf i
@@ -871,6 +866,21 @@ Module VT (Data : CDATA).
 
   (** Split properties *)
 
+  Lemma split_on_invalid_id: forall t i i',
+      ~ is_valid_id t i ->
+      t = split_in_tree i i' t.
+  Proof.
+    intros t i i'; induction t; intros H; simpl in *; auto.
+    - rewrite <- IHt; auto.
+    - destruct (contains_id t1 i);
+        rewrite <- IHt1; try tauto;
+        rewrite <- IHt2; try tauto.
+    - destruct (id =? i) eqn:I.
+      + apply Nat.eqb_eq in I.
+        congruence.
+      + reflexivity.
+  Qed.
+
   (*** Split structure helpers *)
 
   Lemma split_is_seed : forall t i i',
@@ -878,7 +888,7 @@ Module VT (Data : CDATA).
   Proof.
     intros t i i' H.
     destruct t; simpl in *; auto; try congruence.
-    - destruct (contains_id t1 i); congruence.
+    (*- destruct (contains_id t1 i); congruence.*)
     - destruct (id =? i); congruence.
   Qed.
 
@@ -891,27 +901,49 @@ Module VT (Data : CDATA).
     - exists t0.
       injection H as Hd Hc. subst.
       auto.
-    - destruct (contains_id t1 i); simpl; try congruence.
+    (*- destruct (contains_id t1 i); simpl; try congruence.*)
     - destruct (id =? i); simpl; congruence.
   Qed.
 
   Lemma split_is_branch : forall t i i' l r,
+      is_valid_tree_ids t ->
       split_in_tree i i' t = Branch l r ->
       (exists l', t = Branch l' r /\ l = split_in_tree i i' l') \/
         (exists r', t = Branch l r' /\ r = split_in_tree i i' r') \/
         (t = Leaf i /\ l = Leaf i /\ r = Leaf i').
   Proof.
-    intros t i i' l r H.
+    intros t i i' l r Hids H.
     destruct t; simpl in *; try congruence.
-    - destruct (contains_id t1 i).
+    - pose proof valid_id_branch_xor as XOR.
+      destruct (contains_id t1 i) eqn:I1.
       + left.
+        assert (I': contains_id (Branch t1 t2) i = true) by
+          (simpl; rewrite I1; apply Bool.orb_true_l).
+        apply contains_valid_id in I1, I'.
+        specialize (XOR t1 t2 i Hids I').
         exists t1.
-        injection H as H1 H2. subst.
-        auto.
-      + right. left.
-        exists t2.
-        injection H as H1 H2. subst.
-        auto.
+        rewrite <- split_on_invalid_id with (t:=t2) in H.
+        * injection H as H1 H2. subst.
+          auto.
+        * tauto.
+      + destruct (contains_id t2 i) eqn:I2.
+        * right. left.
+          assert (I': contains_id (Branch t1 t2) i = true) by
+            (simpl; rewrite I2; apply Bool.orb_true_r).
+          apply contains_valid_id in I2, I'.
+          specialize (XOR t1 t2 i Hids I').
+          exists t2.
+          rewrite <- split_on_invalid_id with (t:=t1) in H.
+          -- injection H as H1 H2. subst.
+             auto.
+          -- tauto.
+        * left.
+          exists t1.
+          rewrite <- split_on_invalid_id with (t:=t1) in *.
+          rewrite <- split_on_invalid_id with (t:=t2) in H.
+          injection H as H1 H2. subst.
+          auto.
+          all: apply not_contains_valid_id in I1, I2; auto.     
     - right. right.
       destruct (id =? i) eqn:I; try congruence.
       injection H as Hl Hr. subst.
@@ -925,7 +957,7 @@ Module VT (Data : CDATA).
   Proof.
     intros t i i' id H.
     destruct t; simpl in *; try congruence.
-    - destruct (contains_id t1 i); simpl; try congruence.
+    (*- destruct (contains_id t1 i); simpl; try congruence.*)
     - destruct (id0 =? i); simpl; try congruence.
   Qed.
 
@@ -935,122 +967,39 @@ Module VT (Data : CDATA).
       is_valid_tree_structure t ->
       is_valid_tree_structure (split_in_tree i i' t).
   Proof.
-    intros t. induction t; intros i i' H; simpl in *.
-    - tauto.
-    - destruct (split_in_tree i i' t0) eqn:S; simpl.
-      + apply split_is_seed in S.
-        rewrite S in H.
-        contradiction.
-      + apply split_is_node in S.
-        destruct S as [d' [S _]]. rewrite S in H.
-        contradiction.
-      + destruct t0; try contradiction.
-        * apply IHt with (i:=i) (i':=i') in H.
-          rewrite S in H. simpl in H.
-          assumption.
-        * simpl in S.
-          destruct (id =? i); simpl in S.
-          -- injection S as S1 S2. subst.
-             simpl. tauto.
-          -- congruence.
-      + tauto.
-    - destruct (contains_id t1 i) eqn:C.
-      + simpl.
-        destruct (split_in_tree i i' t1) eqn:S.
-        * apply split_is_seed in S.
-          rewrite S in H.
-          contradiction.
-        * apply split_is_node in S. 
-          destruct S as [d' [S S']]. rewrite S in H.
-          rewrite S'.
-          destruct t2; try contradiction; destruct H as [H1 H2]; split; auto.
-          -- simpl in H1.
-             simpl.
-             destruct (split_in_tree i i' d') eqn:AAA.
-             ++ admit.
-             ++ admit.
-             ++ admit.
-             ++ simpl. tauto.
-          -- simpl in H1.
-             simpl.
-             destruct (split_in_tree i i' d') eqn:AAA.
-             ++ admit.
-             ++ admit.
-             ++ admit.
-             ++ simpl. tauto.
-          -- simpl in H1.
-             simpl.
-             destruct (split_in_tree i i' d') eqn:AAA.
-             ++ admit.
-             ++ admit.
-             ++ admit.
-             ++ simpl. tauto.
-        * destruct t1; destruct t2; try contradiction; destruct H as [H H']; split; auto.
-          all: try simpl in S; try congruence.
-          1, 2, 3: admit.
-          1, 2, 3: destruct (id =? i); try congruence;
-          try injection S as S1 S2; subst; simpl; tauto.
-        * apply split_is_leaf in S. rewrite S in H.
-          assumption.
-      + simpl.
-        destruct t1; try contradiction.
-        * destruct (split_in_tree i i' t2) eqn:S.
-          -- admit.
-          -- admit.
-          -- apply split_is_branch in S. destruct S as [[l' [r' S]] | [St [Sl Sr]]].
-             ++ rewrite S in H.
-                admit.
-             ++ subst.
-                split; try tauto.
-                simpl. tauto.
-          -- apply split_is_leaf in S. subst.
-             assumption.
-        * destruct (split_in_tree i i' t2) eqn:S.
-          -- admit.
-          -- admit.
-          -- apply split_is_branch in S. destruct S as [[l' [r' S]] | [St [Sl Sr]]].
-             ++ rewrite S in H.
-                admit.
-             ++ subst.
-                split; try tauto.
-                simpl. tauto.
-          -- apply split_is_leaf in S. subst.
-             assumption.
-        * destruct (split_in_tree i i' t2) eqn:S.
-          -- admit.
-          -- admit.
-          -- apply split_is_branch in S. destruct S as [[l' [r' S]] | [St [Sl Sr]]].
-             ++ rewrite S in H.
-                admit.
-             ++ subst.
-                split; try tauto.
-                simpl. tauto.
-          -- apply split_is_leaf in S. subst.
-             assumption.
-    - destruct (id =? i); simpl; auto.
   Admitted.
 
   Lemma split_ids : forall t i i',
+      is_valid_tree_ids t ->
       ~ is_valid_id t i' ->
       is_valid_id t i ->
       Permutation (i' :: (get_all_ids t)) (get_all_ids (split_in_tree i i' t)).
   Proof.
-    induction t0; intros i i' H' H; simpl in *.
+    intros t; induction t; intros i i' Hids H' H; simpl in *.
     - contradiction.
     - auto.
-    - destruct (contains_id t0_1 i) eqn:I; simpl in *.
+    - pose proof valid_id_branch_xor as XOR.
+      destruct (contains_id t1 i) eqn:I; simpl in *.
       + rewrite app_comm_cons.
         apply Permutation_app.
-        * apply IHt0_1. 
+        * apply IHt1.
+          -- apply valid_ids_branch in Hids. tauto.
           -- tauto.
           -- apply contains_valid_id.
              assumption.
-        * apply Permutation_refl.
+        * specialize (XOR t1 t2 i Hids H).
+          apply contains_valid_id in I.
+          rewrite <- split_on_invalid_id; try tauto.
+          apply Permutation_refl.
       + econstructor.
         * eapply Permutation_middle.
         * apply Permutation_app.
-          -- apply Permutation_refl.
-          -- apply IHt0_2.
+          -- specialize (XOR t1 t2 i Hids H).
+             apply not_contains_valid_id in I.
+             rewrite <- split_on_invalid_id; try tauto.
+             apply Permutation_refl.
+          -- apply IHt2.
+             ++ apply valid_ids_branch in Hids. tauto.
              ++ tauto.
              ++ rewrite not_contains_valid_id in I.
                 tauto.
@@ -1059,54 +1008,43 @@ Module VT (Data : CDATA).
       constructor.
   Qed.
 
-  Lemma split_on_invalid_id: forall t i i',
-      ~ is_valid_id t i ->
-      t = split_in_tree i i' t.
-  Proof.
-    intros t i i'; induction t; intros H; simpl in *; auto.
-    - rewrite <- IHt; auto.
-    - destruct (contains_id t1 i).
-      + rewrite <- IHt1; try tauto.
-      + rewrite <- IHt2; try tauto.
-    - destruct (id =? i) eqn:I.
-      + apply Nat.eqb_eq in I.
-        congruence.
-      + reflexivity.
-  Qed.
-
   Lemma split_valid_ids: forall t i i',
       ~ is_valid_id t i' ->
       is_valid_tree_ids t ->
       is_valid_tree_ids (split_in_tree i i' t).
   Proof.
-    intros t; induction t; intros i i' Hin H; simpl in *.
+    intros t; induction t; intros i i' Hin Hids; simpl in *.
     - assumption.
     - unfold is_valid_tree_ids in *; simpl in *.
       auto.
     - unfold is_valid_tree_ids in *; simpl in *.
-      destruct (contains_id t1 i) eqn:I; simpl.
-      + eapply Permutation_NoDup.
-        * eapply Permutation_app_tail.
-          eapply split_ids; try tauto.
-          apply contains_valid_id.
-          assumption.
-        * rewrite <- app_comm_cons.
-          apply NoDup_cons; try auto.
-          rewrite in_app_iff.
-          repeat rewrite <- valid_in_ids.
-          tauto.
-      + destruct (contains_id t2 i) eqn:I2.
+      destruct (contains_id (Branch t1 t2) i) eqn:I; simpl in *.
+      + apply Bool.orb_prop in I.
+        repeat rewrite contains_valid_id in I.
+        pose proof valid_id_branch_xor as XOR.
+        specialize (XOR t1 t2 i Hids I).
+        destruct I as [I | I].
+        * eapply Permutation_NoDup.
+          -- eapply Permutation_app_tail.
+             eapply split_ids; try tauto.
+             apply valid_ids_branch in Hids. tauto.
+          -- rewrite <- app_comm_cons.
+             rewrite <- split_on_invalid_id with (t:=t2) in *; try tauto.
+             apply NoDup_cons; auto.
+             rewrite in_app_iff.
+             repeat rewrite <- valid_in_ids.
+             tauto.
         * eapply Permutation_NoDup.
           -- eapply Permutation_app_head.
-             apply split_ids; try tauto.
-             apply contains_valid_id.
-             assumption.
-          -- apply no_dup_remove;
+             eapply split_ids; try tauto.
+             apply valid_ids_branch in Hids. tauto.
+          -- rewrite <- split_on_invalid_id with (t:=t1) in *; try tauto.
+             apply NoDupHelpers.no_dup_remove;
                try rewrite <- valid_in_ids;
-               tauto.
-        * erewrite <- split_on_invalid_id; auto.
-          apply not_contains_valid_id.
-          auto.
+               try tauto.
+      + apply Bool.orb_false_iff in I.
+        repeat rewrite not_contains_valid_id in I.
+        repeat rewrite <- split_on_invalid_id; try tauto.
     - destruct (id =? i).
       unfold is_valid_tree_ids in *; simpl in *.
       + unfold not in Hin.
@@ -1114,7 +1052,7 @@ Module VT (Data : CDATA).
         * apply Nat.eqb_eq in I. rewrite I in *.
           tauto.
         * apply Nat.eqb_neq in I.
-          apply no_dup_two.
+          apply NoDupHelpers.no_dup_two.
           auto.
       + assumption.
   Qed.
@@ -1145,7 +1083,6 @@ Module VT (Data : CDATA).
         destruct (contains_id t1 i) eqn:I;
         try apply contains_valid_id in I;
         simpl; auto.
-        apply not_contains_valid_id in I; contradiction.
     - rewrite H.
       rewrite Nat.eqb_refl.
       simpl.
@@ -1185,9 +1122,9 @@ Module VT (Data : CDATA).
     intros t. induction t; intros param i i' j o H; simpl in *.
     - reflexivity.
     - destruct o; simpl; auto.
-    - destruct (contains_id t1 i) eqn:I; simpl;
-        [rewrite IHt1 by assumption | rewrite IHt2 by assumption];
-        reflexivity.
+    - rewrite IHt1 by assumption.
+      rewrite IHt2 by assumption.
+      reflexivity.
     - destruct (id =? i) eqn:I; simpl.
       + destruct (id =? j).
         * destruct o.
@@ -1199,37 +1136,6 @@ Module VT (Data : CDATA).
       + destruct (id =? j); auto.
   Qed.
 
-  Lemma get_on_invalid_id : forall t p i o,
-      t <> Seed ->
-      is_valid_tree_structure t ->
-      ~ is_valid_id t i ->
-      get_compressed_data_in_tree' i t p o = None.
-  Proof.
-    intros t; induction t; intros param i o Ht Hs H;
-      simpl in *.
-    - congruence.
-    - apply IHt.
-      destruct o eqn:O; simpl.
-      + destruct t0; simpl; congruence.
-      + destruct t0; simpl; congruence.
-      + destruct t0; simpl; try contradiction.
-        * assumption.
-        * tauto.
-      + assumption.
-    - rewrite IHt1; simpl.
-      + apply IHt2.
-        * destruct t1, t2; simpl; try contradiction; try congruence.
-        * destruct t1, t2; simpl; tauto.
-        * tauto.
-      + destruct t1; simpl; try contradiction; congruence.
-      + destruct t1, t2; simpl; tauto.
-      + tauto.
-    - destruct (id =? i) eqn:I.
-      + apply Nat.eqb_eq in I.
-        congruence.
-      + reflexivity.
-  Qed.
-
   (* i does not need to be valid, because the tree is unchanged if it is not *)
   Lemma split_get_new_leaf: forall t p i i' o,
       ~ is_valid_id t i' ->
@@ -1238,32 +1144,14 @@ Module VT (Data : CDATA).
       let t' := split_in_tree i i' t in
       get_compressed_data_in_tree' i' t' p o = get_compressed_data_in_tree' i t p o.
   Proof.
-    intros t. induction t; intros param i i' o H Hi Hs; simpl in *.
+    intros t. induction t; intros param i i' o H Hids Hs; simpl in *.
     - reflexivity.
     - destruct o; simpl; apply IHt; auto;
         destruct t0; try contradiction; auto.
-    - destruct (contains_id t1 i) eqn:I; simpl.
-      + rewrite IHt1.
-        * apply contains_valid_id in I.
-          repeat rewrite get_on_invalid_id with (t:=t2); auto.
-          1, 4: destruct t1, t2; simpl; try contradiction; congruence.
-          1, 3: destruct t1 eqn:T1, t2 eqn:T2; try contradiction; rewrite <- T2 in *; tauto.
-          -- unfold is_valid_tree_ids in *. simpl in *.
-             rewrite valid_in_ids in *.
-             eapply no_dup_in_app; eauto.
-        * apply contains_valid_id in I. auto.
-        * unfold is_valid_tree_ids in *; simpl in *.
-          eapply NoDup_app_remove_r; eauto.
-        * destruct t1 eqn:T1, t2 eqn:T2; try contradiction; rewrite <- T2 in *; tauto.
-      + rewrite IHt2.
-        * repeat rewrite get_on_invalid_id with (t:=t1); simpl; auto. 
-          1, 4: destruct t1; simpl; try contradiction; congruence.
-          1, 3: destruct t1 eqn:T1, t2 eqn:T2; try contradiction; rewrite <- T2 in *; tauto.
-          -- apply not_contains_valid_id; auto.
-        * apply not_contains_valid_id in I. auto.
-        * unfold is_valid_tree_ids in *; simpl in *.
-          eapply NoDup_app_remove_l; eauto.
-        * destruct t1 eqn:T1, t2 eqn:T2; try contradiction; rewrite <- T2 in *; tauto.
+    - rewrite IHt1; try tauto.
+      rewrite IHt2; try tauto.
+      1, 3: apply valid_ids_branch in Hids; tauto.
+      all: apply branch_children_valid_struct in Hs; tauto.
     - destruct (id =? i) eqn:I; simpl.
       + destruct (id =? i'); simpl.
         * destruct o; simpl.
