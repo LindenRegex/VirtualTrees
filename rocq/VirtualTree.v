@@ -486,6 +486,70 @@ Module VT (Data : CDATA).
     destruct l; destruct r; auto.
   Qed.
 
+  (** Get helpers *)
+
+  Lemma get_on_invalid_id : forall t p i o,
+      t <> Seed ->
+      is_valid_tree_structure t ->
+      ~ is_valid_id t i ->
+      get_compressed_data_in_tree' i t p o = None.
+  Proof.
+    intros t; induction t; intros param i o Ht Hs H;
+      simpl in *.
+    - congruence.
+    - apply IHt.
+      destruct o eqn:O; simpl.
+      + destruct t0; simpl; congruence.
+      + destruct t0; simpl; congruence.
+      + destruct t0; simpl; try contradiction.
+        * assumption.
+        * tauto.
+      + assumption.
+    - rewrite IHt1; simpl.
+      + apply IHt2.
+        * destruct t1, t2; simpl; try contradiction; try congruence.
+        * destruct t1, t2; simpl; tauto.
+        * tauto.
+      + destruct t1; simpl; try contradiction; congruence.
+      + destruct t1, t2; simpl; tauto.
+      + tauto.
+    - destruct (id =? i) eqn:I.
+      + apply Nat.eqb_eq in I.
+        congruence.
+      + reflexivity.
+  Qed.
+
+  Lemma contains_get_from_some : forall t p i d,
+      is_valid_tree_structure t ->
+      is_valid_tree_ids t ->
+      is_valid_id t i ->
+      (exists d', get_compressed_data_in_tree' i t p (Some d) = Some d').
+  Proof.
+    intros t. induction t; intros param i d Hs Hids Hi; simpl in *; eauto.
+    - eapply IHt; eauto.
+      destruct t0; try contradiction; congruence.
+    - pose proof valid_id_branch_xor as XOR.
+      specialize (XOR t1 t2 i Hids Hi).
+      destruct Hi as [Hi | Hi].
+      + eapply IHt1 in Hi. destruct Hi as [d' Hi].
+        erewrite Hi.
+        * eauto.
+        * destruct t1, t2; try contradiction; tauto.
+        * unfold is_valid_tree_ids in *. simpl in *.
+          eapply NoDup_app_remove_r. eauto.
+      + rewrite get_on_invalid_id.
+        * eapply IHt2; try tauto.
+          unfold is_valid_tree_ids in *. simpl in *.
+          -- destruct t1, t2; try contradiction; tauto.
+          -- eapply NoDup_app_remove_l. eauto.
+        * destruct t1; try contradiction; congruence.
+        * destruct t1, t2; try contradiction; tauto.
+        * tauto.
+    - subst.
+      rewrite Nat.eqb_refl.
+      eauto.
+  Qed.
+
   (** Insert properties *)
 
   (*** Insert: Validity of resulting state *)
@@ -606,72 +670,87 @@ Module VT (Data : CDATA).
 
   (*** Insert: Get on resulting state *)
 
-  (* when inserting for i, the new data for i is the compression of the compressed old data for i and the new data *)
+  Lemma insert_on_invalid_id : forall t p i d,
+      ~ is_valid_id t i ->
+      t = insert_in_tree i d t p.
+  Proof.
+    intros t p i d. induction t; intros H; simpl in *; auto.
+    - destruct (is_leaf_with_id t0 i) eqn:L.
+      + apply is_Leaf_with_id in L. subst.
+        simpl in *.
+        congruence.
+      + rewrite <- IHt; auto.
+    - rewrite <- IHt1, <- IHt2; auto.
+    - apply Nat.eqb_neq in H.
+      rewrite H.
+      reflexivity.
+  Qed.
+
   Lemma insert_get_some : forall t p id d c_old c_new,
       is_valid_state (t, p) ->
       is_valid_id t id ->
       get_compressed_data id (t, p) = Some c_old -> (* case where data already existed for id *)
       get_compressed_data id (insert id d (t, p)) = Some c_new /\
-        c_new = Data.compress p d c_old. (* TODO check compress order*)
+        c_new = Data.compress p c_old d.
   Proof.
   Admitted.
 
-  Lemma contains_get_from_some : forall t p i d,
-      is_valid_id t i ->
-      (exists d', get_compressed_data_in_tree' i t p (Some d) = Some d').
-  Proof.
-    intros t. induction t; intros param i d Hi; simpl in *; eauto.
-    - destruct Hi as [Hi | Hi].
-      + eapply IHt1 in Hi. destruct Hi as [d' Hi].
-        erewrite Hi.
-        eauto.
-      + (* TODO xor lemma*)
-    
-    Admitted.
-
   (* when inserting for i with no data, the new data for i is the inserted data *)
   Lemma insert_get_none_in_tree : forall t p id d o,
-      (*is_valid_state (t, p) ->*)
+      is_valid_tree_structure t ->
+      is_valid_tree_ids t ->
       is_valid_id t id -> (* needed*)
       get_compressed_data_in_tree' id t p o = None ->
       get_compressed_data_in_tree' id (insert_in_tree id d t p) p o = Some d.
   Proof.
     intros t; induction t;
-      intros param i d o Hid H;
+      intros param i d o Hs Hids Hid H;
       simpl in *.
     - contradiction.
     - apply contains_get_from_some with
         (d:= match o with | Some a => compress param a data | None => data end)
         (p:= param)
         in Hid.
-      destruct Hid as [d' Hid].
-      destruct o; try congruence.
-    - destruct (is_leaf_with_id t1 i) eqn:Ll; simpl.
-      + apply is_Leaf_with_id in Ll. subst. simpl in *.
-        rewrite Nat.eqb_refl in *.
-        destruct o; try congruence; auto.
-      + destruct (is_leaf_with_id t2 i) eqn:Lr; simpl.
-        * apply is_Leaf_with_id in Lr. subst. simpl in *.
-          rewrite Nat.eqb_refl in *.
-          destruct (get_compressed_data_in_tree' i t1 param o); try congruence.
-          rewrite H.
-          reflexivity.
-        * destruct (get_compressed_data_in_tree' i t1 param o) eqn:C1; try congruence.
-          rewrite IHt1 with (d := d); auto. admit.
-          
+      + destruct Hid as [d' Hid].
+        destruct o; try congruence.
+      + destruct t0; try contradiction; auto.
+      + unfold is_valid_tree_ids in *; auto.
+    - pose proof valid_id_branch_xor as XOR.
+      specialize (XOR t1 t2 i Hids Hid).
+      destruct Hid as [H1 | H2].
+      + destruct (get_compressed_data_in_tree' i t1 param o) eqn:G; try congruence.
+        erewrite IHt1; eauto.
+        * destruct t1, t2; try contradiction; tauto.
+        * unfold is_valid_tree_ids in *. simpl in *.
+          eapply NoDup_app_remove_r. eauto.
+      + rewrite get_on_invalid_id.
+        * apply IHt2; eauto.
+          -- destruct t1, t2; try contradiction; tauto.
+          -- unfold is_valid_tree_ids in *. simpl in *.
+             eapply NoDup_app_remove_l. eauto.
+          -- destruct (get_compressed_data_in_tree' i t1 param o);
+               try congruence; auto.
+        * apply insert_is_not_seed. destruct t1; try contradiction; congruence.
+        * destruct t1, t2; try contradiction; apply insert_valid_structure; tauto.
+        * rewrite <- insert_on_invalid_id; tauto.
     - subst.
       rewrite Nat.eqb_refl in *; simpl.
       rewrite Nat.eqb_refl. subst.
       reflexivity.
-  Admitted.
+  Qed.
 
-  Lemma insert_get_none : forall t p id d c,
+  Lemma insert_get_none : forall t p id d,
       is_valid_state (t, p) ->
       is_valid_id t id ->
       get_compressed_data id (t, p) = None ->
-      get_compressed_data id (insert id d (t, p)) = Some c.
+      get_compressed_data id (insert id d (t, p)) = Some d.
   Proof.
-  Admitted.
+    intros t param id d [Hs [Hids Hd]] Hid H.
+    unfold get_compressed_data.
+    unfold insert.
+    simpl.
+    apply insert_get_none_in_tree; auto.
+  Qed.
 
   Lemma insert_get_unchanged : forall t p i j d o o',
       i <> j ->
@@ -688,21 +767,15 @@ Module VT (Data : CDATA).
         rewrite Hij.
         reflexivity.
       + rewrite IHt with (o:= o); auto.
-    - destruct (is_leaf_with_id t1 i) eqn:Ll.
-      + apply is_Leaf_with_id in Ll. subst. simpl.
+    - destruct (get_compressed_data_in_tree' j t1 param o') eqn:G.
+      + rewrite IHt1 with (o := Some t0); auto.
+      + rewrite IHt1 with (o := None); auto.
+    - destruct (id =? i) eqn:I; simpl.
+      + apply Nat.eqb_eq in I. subst.
         apply Nat.eqb_neq in Hij. rewrite Hij.
         reflexivity.
-      + destruct (is_leaf_with_id t2 i) eqn:Lr.
-        * apply is_Leaf_with_id in Lr. subst. simpl.
-          apply Nat.eqb_neq in Hij. rewrite Hij.
-          reflexivity.
-        * simpl.
-          destruct (get_compressed_data_in_tree' j t1 param o') eqn:G1.
-          -- subst.
-             rewrite IHt1 with (o:=Some t0); auto.
-          -- rewrite IHt1 with (o:=None); auto.
-    - destruct (id =? j); auto; admit.
-  Admitted.
+      + assumption.
+  Qed.
 
   (* the data for all other leaves is unchanged *)
   Lemma insert_unchanged : forall t p i j d o,
