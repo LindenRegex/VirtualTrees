@@ -441,6 +441,18 @@ Module VT (Data : CDATA).
     apply NoDupHelpers.no_dup_app_comm; auto.
   Qed.
 
+  Lemma valid_ids_branch : forall l r,
+      is_valid_tree_ids (Branch l r) ->
+      is_valid_tree_ids l /\ is_valid_tree_ids r.
+  Proof.
+    intros l r H.
+    unfold is_valid_tree_ids in *.
+    simpl in *.
+    split;
+      [eapply NoDup_app_remove_r | eapply NoDup_app_remove_l];
+      eauto.
+  Qed.
+
   (** Structure helpers *)
 
   Lemma is_Leaf_with_id : forall t id,
@@ -463,7 +475,7 @@ Module VT (Data : CDATA).
     intros t H; destruct t; simpl in *; congruence.
   Qed.
 
-  Lemma node_has_child_with_valid_structure : forall d c,
+  Lemma node_of_child_with_valid_structure : forall d c,
       c <> Seed ->
       (forall d' c', c <> Node d' c') ->
       is_valid_tree_structure c ->
@@ -475,7 +487,7 @@ Module VT (Data : CDATA).
     congruence.
   Qed.
 
-  Lemma branch_has_children_with_valid_structure : forall l r,
+  Lemma branch_of_children_with_valid_structure : forall l r,
       l <> Seed ->
       r <> Seed ->
       is_valid_tree_structure l ->
@@ -484,6 +496,20 @@ Module VT (Data : CDATA).
   Proof.
     intros. simpl in *.
     destruct l; destruct r; auto.
+  Qed.
+
+  Lemma branch_children_valid_struct : forall l r,
+      is_valid_tree_structure (Branch l r) ->
+      is_valid_tree_structure l /\ is_valid_tree_structure r.
+  Proof.
+    intros l r H; simpl in *; destruct l, r; try contradiction; tauto.
+  Qed.
+
+  Lemma branch_no_seed_children : forall l r,
+      is_valid_tree_structure (Branch l r) ->
+      l <> Seed /\ r <> Seed.
+  Proof.
+    intros l r H; simpl in *; split; destruct _; try contradiction; destruct _; try congruence.
   Qed.
 
   (** Get helpers *)
@@ -507,11 +533,11 @@ Module VT (Data : CDATA).
       + assumption.
     - rewrite IHt1; simpl.
       + apply IHt2.
-        * destruct t1, t2; simpl; try contradiction; try congruence.
-        * destruct t1, t2; simpl; tauto.
+        * apply branch_no_seed_children in Hs. tauto.
+        * apply branch_children_valid_struct in Hs. tauto.
         * tauto.
-      + destruct t1; simpl; try contradiction; congruence.
-      + destruct t1, t2; simpl; tauto.
+      + apply branch_no_seed_children in Hs. tauto.
+      + apply branch_children_valid_struct in Hs. tauto.
       + tauto.
     - destruct (id =? i) eqn:I.
       + apply Nat.eqb_eq in I.
@@ -534,16 +560,14 @@ Module VT (Data : CDATA).
       + eapply IHt1 in Hi. destruct Hi as [d' Hi].
         erewrite Hi.
         * eauto.
-        * destruct t1, t2; try contradiction; tauto.
-        * unfold is_valid_tree_ids in *. simpl in *.
-          eapply NoDup_app_remove_r. eauto.
+        * apply branch_children_valid_struct in Hs. tauto.
+        * apply valid_ids_branch in Hids. tauto.
       + rewrite get_on_invalid_id.
         * eapply IHt2; try tauto.
-          unfold is_valid_tree_ids in *. simpl in *.
-          -- destruct t1, t2; try contradiction; tauto.
-          -- eapply NoDup_app_remove_l. eauto.
-        * destruct t1; try contradiction; congruence.
-        * destruct t1, t2; try contradiction; tauto.
+          -- apply branch_children_valid_struct in Hs. tauto.
+          -- apply valid_ids_branch in Hids. tauto.
+        * apply branch_no_seed_children in Hs. tauto.
+        * apply branch_children_valid_struct in Hs. tauto.
         * tauto.
     - subst.
       rewrite Nat.eqb_refl.
@@ -555,15 +579,11 @@ Module VT (Data : CDATA).
   (*** Insert: Validity of resulting state *)
 
   Lemma insert_ids : forall t p id d,
-      is_valid_tree_ids t ->
       get_all_ids t = get_all_ids (insert_in_tree id d t p).
   Proof.
-    intros t. induction t; intros param i d H; simpl in *; try auto.
+    intros t. induction t; intros param i d; simpl in *; try auto.
     - destruct (is_leaf_with_id t0 i); simpl in *; auto.
-    - unfold is_valid_tree_ids in *. simpl in H.
-      rewrite <- IHt1. rewrite <- IHt2; auto.
-      + eapply NoDup_app_remove_l; eauto.
-      + eapply NoDup_app_remove_r; eauto.
+    - rewrite <- IHt1. rewrite <- IHt2; auto.
     - destruct (id =? i) eqn:I; simpl; auto.
   Qed.
 
@@ -574,7 +594,6 @@ Module VT (Data : CDATA).
     intros.
     unfold is_valid_tree_ids in *.
     rewrite <- insert_ids;
-      unfold is_valid_tree_ids in *;
       assumption.
   Qed.
 
@@ -622,7 +641,7 @@ Module VT (Data : CDATA).
     - simpl in *.
       destruct t0 eqn:T0; try contradiction.
       + unfold is_leaf_with_id.
-        apply node_has_child_with_valid_structure;
+        apply node_of_child_with_valid_structure;
           auto;
           try intros; simpl;
           congruence.
@@ -630,7 +649,7 @@ Module VT (Data : CDATA).
         destruct (id =? i); auto.
     - simpl insert_in_tree.
       simpl in H.
-      apply branch_has_children_with_valid_structure.
+      apply branch_of_children_with_valid_structure.
       + destruct (is_seed t1) eqn:T1.
         * apply is_Seed in T1. rewrite T1 in *.
           contradiction.
@@ -643,8 +662,8 @@ Module VT (Data : CDATA).
         * apply insert_is_not_seed.
           apply is_not_Seed.
           assumption.
-      + apply IHt1. destruct t1, t2; try contradiction; tauto.
-      + apply IHt2. destruct t1, t2; try contradiction; tauto.
+      + apply IHt1. apply branch_children_valid_struct in H. tauto.
+      + apply IHt2. apply branch_children_valid_struct in H. tauto.
     - simpl in *.
       destruct (id =? i); auto.
   Qed.
@@ -686,16 +705,6 @@ Module VT (Data : CDATA).
       reflexivity.
   Qed.
 
-  Lemma insert_get_some : forall t p id d c_old c_new,
-      is_valid_state (t, p) ->
-      is_valid_id t id ->
-      get_compressed_data id (t, p) = Some c_old -> (* case where data already existed for id *)
-      get_compressed_data id (insert id d (t, p)) = Some c_new /\
-        c_new = Data.compress p c_old d.
-  Proof.
-  Admitted.
-
-  (* when inserting for i with no data, the new data for i is the inserted data *)
   Lemma insert_get_none_in_tree : forall t p id d o,
       is_valid_tree_structure t ->
       is_valid_tree_ids t ->
@@ -720,14 +729,12 @@ Module VT (Data : CDATA).
       destruct Hid as [H1 | H2].
       + destruct (get_compressed_data_in_tree' i t1 param o) eqn:G; try congruence.
         erewrite IHt1; eauto.
-        * destruct t1, t2; try contradiction; tauto.
-        * unfold is_valid_tree_ids in *. simpl in *.
-          eapply NoDup_app_remove_r. eauto.
+        * apply branch_children_valid_struct in Hs. tauto.
+        * apply valid_ids_branch in Hids. tauto.
       + rewrite get_on_invalid_id.
         * apply IHt2; eauto.
-          -- destruct t1, t2; try contradiction; tauto.
-          -- unfold is_valid_tree_ids in *. simpl in *.
-             eapply NoDup_app_remove_l. eauto.
+          -- apply branch_children_valid_struct in Hs. tauto.
+          -- apply valid_ids_branch in Hids. tauto.
           -- destruct (get_compressed_data_in_tree' i t1 param o);
                try congruence; auto.
         * apply insert_is_not_seed. destruct t1; try contradiction; congruence.
@@ -750,6 +757,80 @@ Module VT (Data : CDATA).
     unfold insert.
     simpl.
     apply insert_get_none_in_tree; auto.
+  Qed.
+
+  Lemma invalid_id_in_insert : forall t p i d id,
+      ~ is_valid_id t id ->
+      ~ is_valid_id (insert_in_tree i d t p) id.
+  Proof.
+    intros.
+    rewrite valid_in_ids in *.
+    rewrite <- insert_ids in *.
+    assumption.
+  Qed.
+
+  Lemma insert_get_some_in_tree : forall t p id d c_old o,
+      is_valid_tree_structure t ->
+      is_valid_tree_ids t ->
+      is_valid_id t id ->
+      get_compressed_data_in_tree' id t p o = Some c_old -> (* case where data already existed for id *)
+      get_compressed_data_in_tree' id (insert_in_tree id d t p) p o = Some (Data.compress p c_old d).
+  Proof.
+    intros t; induction t; intros param i d c_old o Hs Hids Hi H; simpl in *; auto.
+    - contradiction.
+    - destruct (is_leaf_with_id t0 i) eqn:L.
+      + apply is_Leaf_with_id in L. subst. simpl in *.
+        rewrite Nat.eqb_refl in *.
+        destruct o. 
+        * injection H as H. subst.
+          rewrite Data.compress_assoc.
+          reflexivity.
+        * injection H as H. subst.
+          reflexivity.
+      + simpl.
+        destruct o;
+          apply IHt; auto;
+          destruct t0; try contradiction; auto.
+    - pose proof valid_id_branch_xor as XOR.
+      specialize (XOR t1 t2 i Hids Hi).
+      destruct Hi as [Hi | Hi].
+      + destruct (get_compressed_data_in_tree' i t1 param o) eqn:G.
+        * injection H as H.
+          rewrite IHt1 with (c_old := t0); auto; try congruence.
+          -- apply branch_children_valid_struct in Hs. tauto.
+          -- apply valid_ids_branch in Hids; tauto.
+        * rewrite get_on_invalid_id with (t:=t2) in H; try congruence; try tauto.
+          -- apply branch_no_seed_children in Hs. tauto.
+          -- apply branch_children_valid_struct in Hs. tauto.
+      + rewrite get_on_invalid_id with (t:=t1) in H; try tauto.
+        -- rewrite get_on_invalid_id.
+           ++ apply IHt2; auto; try congruence.
+              ** apply branch_children_valid_struct in Hs. tauto.
+              ** apply valid_ids_branch in Hids. tauto.
+           ++ apply insert_is_not_seed.
+              apply branch_no_seed_children in Hs. tauto.
+           ++ apply insert_valid_structure.
+              apply branch_children_valid_struct in Hs. tauto.
+           ++ apply invalid_id_in_insert.
+              tauto.
+        -- apply branch_no_seed_children in Hs. tauto.
+        -- apply branch_children_valid_struct in Hs. tauto.
+    - apply Nat.eqb_eq in Hi. rewrite Hi in *.
+      simpl. rewrite Hi.
+      subst.
+      reflexivity.
+  Qed.
+
+  Lemma insert_get_some : forall t p id d c_old,
+      is_valid_state (t, p) ->
+      is_valid_id t id ->
+      get_compressed_data id (t, p) = Some c_old -> (* case where data already existed for id *)
+      get_compressed_data id (insert id d (t, p)) = Some (Data.compress p c_old d).
+  Proof.
+    intros t p id d c [Hs [Hids Hd]] Hid H.
+    unfold get_compressed_data.
+    unfold insert.
+    apply insert_get_some_in_tree; auto.
   Qed.
 
   Lemma insert_get_unchanged : forall t p i j d o o',
