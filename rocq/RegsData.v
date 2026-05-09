@@ -76,6 +76,10 @@ Module Array.
         lia.
   Qed.
 
+  Lemma get_is_None {A} : forall n (a: t A),
+      get a n = None -> n >= length a.
+  Proof. intros. apply nth_error_None. assumption. Qed.
+
   Lemma in_make {A} : forall (x: A) (a: A) (size: nat),
       In x (make size a) -> x = a.
   Proof.
@@ -134,6 +138,15 @@ Module Array.
       + reflexivity.
       + apply IHa.
         lia.
+  Qed.
+
+  Lemma set_get {A} : forall a i (x: A),
+      get a i = Some x -> set a i x = a.
+  Proof.
+    induction a; intros i x H; simpl in *; auto.
+    destruct i; simpl in *.
+    - injection H as H. congruence.
+    - rewrite IHa; auto.
   Qed.
 
   Lemma zipWith_length {A} {B} {C} : forall (a : t A) (b : t B) (f : A -> B -> C),
@@ -255,6 +268,34 @@ Module Array.
           -- apply different_at_succ_same_head in H.
              congruence.
           -- eapply different_at_some_cons. eauto.
+  Qed.
+
+  Lemma zipWith_set_overwrite_r {A} {B} : forall a b xa xb (f: A -> B -> B) i,
+      get b i = Some xb ->
+      (forall x, f x xb = xb) ->
+      zipWith (set a i xa) b f = zipWith a b f.
+  Proof.
+    induction a; intros b xa xb f i Hb Hf; simpl in *; auto.
+    - destruct b eqn:LB.
+      + destruct i; simpl in *; congruence.
+      + destruct i eqn:I; simpl in *.
+        * injection Hb as Hb. subst.
+          congruence.
+        * erewrite IHa; eauto.
+  Qed.
+
+  Lemma zipWith_set_overwrite_l {A} {B} : forall a b xa xb (f: A -> B -> A) i,
+      get b i = Some xb ->
+      (forall x, f x xb = x) ->
+      zipWith (set a i xa) b f = set (zipWith a b f) i xa.
+  Proof.
+    induction a; intros b xa xb f i Hb Hf; simpl in *; auto.
+    destruct b eqn:LB.
+    - destruct i; simpl in *; congruence.
+    - destruct i eqn:I; simpl in *.
+      * injection Hb as Hb. subst.
+        congruence.
+      * erewrite IHa; eauto.
   Qed.
   
 End Array.
@@ -603,9 +644,75 @@ Module RegsData : CDATA.
         reflexivity.
   Qed.
 
+  Lemma merge_arrays_old_is_None : forall a,
+      merge_arrays (Array.make (Array.length a) None) a = a.
+  Proof.
+    intros a.
+    unfold merge_arrays.
+    apply Array.zipWith_neutral_l.
+    - intros x y Hin.
+      unfold get_most_recent.
+      apply Array.in_make in Hin.
+      rewrite Hin.
+      destruct y; reflexivity.
+    - rewrite Array.length_make.
+      lia.
+  Qed.
+
+  Lemma merge_new_array_old_list_set_array : forall l a x i,
+      merge_new_array_old_list l (Array.set a i (Some x)) =
+        Array.set (merge_new_array_old_list l a) i (Some x).
+  Proof.
+    induction l; intros arr x i; simpl in *; auto.
+    destruct a as [j e].
+    destruct (Nat.leb (Array.length arr) i) eqn:I.
+    - apply Nat.leb_le in I.
+      rewrite Array.set_invalid; auto.
+      rewrite Array.set_invalid with (i:=i); auto.
+      rewrite <- merge_new_array_old_list_length.
+      destruct (@Array.get val arr j) eqn:G.
+      + destruct v eqn:V; auto.
+        rewrite Array.length_set.
+        auto.
+      + auto.
+    - 
+  Admitted.
+
   Lemma merge_new_array_old_list_equiv : forall l a,
       merge_new_array_old_list l a =
         merge_arrays (list_to_array (Array.length a) l) a.
+  Proof.
+    induction l; intros arr; simpl in *.
+    - unfold list_to_array. simpl.
+      symmetry.
+      apply merge_arrays_old_is_None.
+    - destruct a as [i e].
+      destruct (Array.get arr i) eqn:G.
+      + destruct v eqn:V.
+        * (* array overwrites list *)
+          unfold list_to_array. simpl.
+          destruct e eqn:E; simpl in *.
+          -- unfold merge_arrays.
+             rewrite Array.zipWith_set_overwrite_r with (xb:= Some n); auto.
+          -- auto.
+        * (* array has none, so list writes *)
+          unfold list_to_array in *.
+          unfold merge_arrays in *. simpl.
+          destruct e eqn:E; simpl in *.
+          -- rewrite Array.zipWith_set_overwrite_l with (xb:=None) (b:= arr); auto.
+             rewrite <- IHl.
+             apply merge_new_array_old_list_set_array.
+          -- rewrite <- IHl.
+             rewrite Array.set_get; auto.
+      + (* i is out of bounds *)
+        unfold list_to_array. simpl.
+        destruct e eqn:E; simpl in *.
+        * apply Array.get_is_None in G.
+          rewrite Array.set_invalid; auto.
+          rewrite <- merge_new_list_old_array_length.
+          rewrite Array.length_make.
+          assumption.
+        * auto.
   Admitted.
   
   Lemma merge_arrays_assoc : forall x y z,
