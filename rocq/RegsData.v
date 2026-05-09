@@ -76,9 +76,11 @@ Module Array.
         lia.
   Qed.
 
-  Lemma get_is_None {A} : forall n (a: t A),
-      get a n = None -> n >= length a.
-  Proof. intros. apply nth_error_None. assumption. Qed.
+  Lemma get_invalid {A} : forall n (a: t A),
+      get a n = None <-> n >= length a.
+  Proof.
+    split; intros; apply nth_error_None; assumption.
+  Qed.
 
   Lemma in_make {A} : forall (x: A) (a: A) (size: nat),
       In x (make size a) -> x = a.
@@ -89,15 +91,23 @@ Module Array.
   Qed.
 
   Lemma get_valid {A} : forall (a: t A) i,
-      0 <= i /\ i < length a ->
+      0 <= i /\ i < length a <->
       (exists x, get a i = Some x).
   Proof.
-    induction a; intros; simpl in *.
-    - lia.
-    - destruct i eqn:I.
-      + exists a. auto.
-      + simpl.
-        apply IHa.
+    split; intros.
+    - destruct (nth_error a i) eqn:Hnth.
+      + exists a0.
+        exact Hnth.
+      + apply nth_error_None in Hnth.
+        unfold length in *.
+        lia.
+    - destruct H as [x H].
+      destruct (Nat.leb (length a) i) eqn:I.
+      + apply Nat.leb_le in I.
+        apply nth_error_None in I.
+        unfold get in H.
+        congruence.
+      + apply Nat.leb_gt in I.
         lia.
   Qed.
 
@@ -112,6 +122,17 @@ Module Array.
       + rewrite IHa.
         * reflexivity.
         * lia.
+  Qed.
+
+  Lemma set_comm {A} : forall (a: t A) i j x y,
+      i <> j ->
+      set (set a i x) j y = set (set a j y) i x.
+  Proof.
+    induction a; intros; simpl in *; auto.
+    destruct i; destruct j; auto.
+    - congruence.
+    - simpl.
+      rewrite IHa; auto.
   Qed.
 
   Lemma get_set_eq {A} : forall (a : t A) i x,
@@ -147,6 +168,27 @@ Module Array.
     destruct i; simpl in *.
     - injection H as H. congruence.
     - rewrite IHa; auto.
+  Qed.
+
+  Lemma get_neq_set {A} : forall a i j (x y: A),
+      get (set a i x) j = Some y ->
+      x <> y ->
+      get a j = Some y.
+  Proof.
+    intros a i j x y H Hxy; simpl in *.
+    destruct (Nat.leb (length a) j) eqn:J.
+    - apply Nat.leb_le in J.
+      erewrite <- length_set with (i:=i) (x:= x) in J.
+      apply nth_error_None in J.
+      unfold get in *.
+      congruence.
+    - apply Nat.leb_gt in J.
+      destruct (i =? j) eqn:Hij.
+      + apply Nat.eqb_eq in Hij. subst.
+        rewrite get_set_eq in H; auto.
+        injection H as H. congruence.
+      + apply Nat.eqb_neq in Hij.
+        rewrite get_set_neq in H; auto.
   Qed.
 
   Lemma zipWith_length {A} {B} {C} : forall (a : t A) (b : t B) (f : A -> B -> C),
@@ -665,17 +707,34 @@ Module RegsData : CDATA.
   Proof.
     induction l; intros arr x i; simpl in *; auto.
     destruct a as [j e].
-    destruct (Nat.leb (Array.length arr) i) eqn:I.
-    - apply Nat.leb_le in I.
-      rewrite Array.set_invalid; auto.
-      rewrite Array.set_invalid with (i:=i); auto.
-      rewrite <- merge_new_array_old_list_length.
-      destruct (@Array.get val arr j) eqn:G.
-      + destruct v eqn:V; auto.
-        rewrite Array.length_set.
-        auto.
-      + auto.
-    - 
+    destruct (@Array.get val (@Array.set (option nat) arr i (@Some nat x)) j) eqn:A.
+    - destruct v eqn:V; simpl in *.
+      + destruct (i =? j) eqn:Hij.
+        * apply Nat.eqb_eq in Hij. subst.
+          (* j is valid *)
+          (* destruct get arr j -> set later in j anyways *) 
+          rewrite Array.get_set_eq in A.
+          injection A as A. subst.
+          admit. admit.
+        * apply Nat.eqb_neq in Hij.
+          rewrite Array.get_set_neq in A; auto.
+          rewrite A.
+          auto.
+      + destruct (i =? j) eqn:Hij.
+        * apply Nat.eqb_eq in Hij. subst.
+          rewrite Array.get_set_eq in A; try congruence.
+          erewrite <- Array.length_set.
+          apply Array.get_valid.
+          eauto.
+        * apply Nat.eqb_neq in Hij.
+          rewrite Array.get_set_neq in A; auto.
+          rewrite A.
+          rewrite Array.set_comm; auto.
+    - apply Array.get_invalid in A.
+      rewrite Array.length_set in A.
+      apply Array.get_invalid in A.
+      rewrite A.
+      auto.      
   Admitted.
 
   Lemma merge_new_array_old_list_equiv : forall l a,
@@ -707,7 +766,7 @@ Module RegsData : CDATA.
       + (* i is out of bounds *)
         unfold list_to_array. simpl.
         destruct e eqn:E; simpl in *.
-        * apply Array.get_is_None in G.
+        * apply Array.get_invalid in G.
           rewrite Array.set_invalid; auto.
           rewrite <- merge_new_list_old_array_length.
           rewrite Array.length_make.
