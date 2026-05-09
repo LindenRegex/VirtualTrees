@@ -201,13 +201,61 @@ Module Array.
         * lia.
   Qed.
 
+  Lemma different_at_head_same_tails {A} : forall (a0 b0 : A) a b,
+      (forall j : nat, j <> 0 -> get (a0 :: a) j = get (b0 :: b) j) ->
+      a = b.
+  Proof.
+    intros a0 b0 a b H.
+    apply nth_error_ext.
+    intros n.
+    specialize (H (S n)).
+    simpl in *.
+    auto.
+  Qed.
+
+  Lemma different_at_some_cons {A} : forall n (a0 b0 : A) a b,
+      (forall j : nat, j <> S n -> get (a0 :: a) j = get (b0 :: b) j) ->
+      (forall j : nat, j <> n -> get a j = get b j).
+  Proof.
+    intros n a0 b0 a b H j Hj.
+    specialize (H (S j)).
+    simpl in *.
+    auto.
+  Qed.
+
+  Lemma different_at_succ_same_head {A} : forall n (a0 b0 : A) a b,
+      (forall j : nat, j <> S n -> get (a0 :: a) j = get (b0 :: b) j) ->
+      a0 = b0.
+  Proof.
+    intros n a0 b0 a b H.
+    specialize (O_S n) as Hn.
+    specialize (H 0 Hn).
+    simpl in *.
+    injection H as H.
+    assumption.
+  Qed.      
+  
   Lemma zipWith_in {A} {B} {C} : forall (a: t A) (b b': t B) (f: A -> B -> C) i x y,
       get b i = Some x ->
       get a i = Some y ->
+      length b = length b' ->
       (forall j, j <> i -> get b j = get b' j) ->
       zipWith a b f = set (zipWith a b' f) i (f y x).
   Proof.
-  Admitted.
+    induction a; intros b b' f i x y Hb Ha Hl H; simpl in *; auto.
+    destruct b eqn:LB; simpl in *.
+    - destruct i; simpl in Hb; congruence.
+    - destruct b' eqn:LB'; simpl in *.
+      + congruence.
+      + destruct i eqn:I; simpl in *.
+        * injection Hb as Hb. injection Ha as Ha. subst.
+          apply different_at_head_same_tails in H.
+          congruence.
+        * erewrite <- IHa; eauto.
+          -- apply different_at_succ_same_head in H.
+             congruence.
+          -- eapply different_at_some_cons. eauto.
+  Qed.
   
 End Array.
 
@@ -486,6 +534,9 @@ Module RegsData : CDATA.
     reflexivity.
   Qed.
 
+  Lemma nat_pos_bounded : forall x y, x < y -> 0 <= x < y.
+  Proof. lia. Qed.
+
   Lemma merge_arrays_from_list_some : forall a l i n,
       merge_arrays a (list_to_array (Array.length a) ((i, Some n) :: l)) =
         Array.set (merge_arrays a (list_to_array (Array.length a) l)) i (Some n).
@@ -507,11 +558,21 @@ Module RegsData : CDATA.
         rewrite Array.length_make.
         lia.
     - apply Nat.leb_gt in A.
-      erewrite Array.zipWith_in with (b':= list_to_array (Array.length a) l) (x:= Some n) (i:= i); eauto.
+      pose proof nat_pos_bounded as B. specialize (B i (Array.length a) A).
+      apply Array.get_valid in B.
+      destruct B as [x B].
+      erewrite Array.zipWith_in with (b':= list_to_array (Array.length a) l) (x:= Some n) (i:= i);
+        eauto.
       + apply list_to_array_get_some.
         lia.
-      + apply Array.get_valid.
-  Admitted.
+      + unfold list_to_array. simpl.
+        rewrite Array.length_set.
+        reflexivity.
+      + intros j Hij.
+        unfold list_to_array. simpl.
+        apply Array.get_set_neq.
+        auto.
+  Qed.
 
   Lemma merge_arrays_from_list_none : forall a l i,
       merge_arrays a (list_to_array (Array.length a) ((i, None) :: l)) =
