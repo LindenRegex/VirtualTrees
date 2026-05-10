@@ -19,6 +19,9 @@ Module Type CDATA.
   
   (* associativity *)
   Axiom compress_assoc : forall (x y z : t) (param: p),
+      is_valid param x ->
+      is_valid param y ->
+      is_valid param z ->
       compress param x (compress param y z) = compress param (compress param x y) z.
 
 End CDATA.

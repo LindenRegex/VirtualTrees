@@ -52,6 +52,14 @@ Module Array.
     - destruct i; simpl; auto.
   Qed.
 
+  Lemma in_make {A} : forall (x: A) (a: A) (size: nat),
+      In x (make size a) -> x = a.
+  Proof.
+    induction size; intros Hin; simpl in *.
+    - contradiction.
+    - destruct Hin as [Hin | Hin]; auto.
+  Qed.
+
   Lemma get_make {A} : forall (n : nat) (x : A) (i : nat),
       i < n ->
       get (make n x) i = Some x.
@@ -82,33 +90,18 @@ Module Array.
     split; intros; apply nth_error_None; assumption.
   Qed.
 
-  Lemma in_make {A} : forall (x: A) (a: A) (size: nat),
-      In x (make size a) -> x = a.
-  Proof.
-    induction size; intros Hin; simpl in *.
-    - contradiction.
-    - destruct Hin as [Hin | Hin]; auto.
-  Qed.
-
   Lemma get_valid {A} : forall (a: t A) i,
       0 <= i /\ i < length a <->
       (exists x, get a i = Some x).
   Proof.
-    split; intros.
-    - destruct (nth_error a i) eqn:Hnth.
-      + exists a0.
-        exact Hnth.
-      + apply nth_error_None in Hnth.
-        unfold length in *.
-        lia.
-    - destruct H as [x H].
-      destruct (Nat.leb (length a) i) eqn:I.
-      + apply Nat.leb_le in I.
-        apply nth_error_None in I.
-        unfold get in H.
-        congruence.
-      + apply Nat.leb_gt in I.
-        lia.
+    Check nth_error_Some.
+    split; intros; destruct H as [h H]; unfold get in *.
+    - apply nth_error_Some in H.
+      destruct (nth_error a i) eqn:N; try congruence.
+      eexists. eauto.
+    - split; try lia.
+      apply nth_error_Some.
+      congruence.
   Qed.
 
   Lemma set_invalid {A} : forall (a: t A) i x,
@@ -133,6 +126,15 @@ Module Array.
     - congruence.
     - simpl.
       rewrite IHa; auto.
+  Qed.
+
+  Lemma set_overwrite {A} : forall (a: t A) i x y,
+      set (set a i x) i y = set a i y.
+  Proof.
+    induction a; intros i x y; simpl in *; auto.
+    destruct i; simpl in *; auto.
+    rewrite IHa.
+    reflexivity.
   Qed.
 
   Lemma get_set_eq {A} : forall (a : t A) i x,
@@ -312,7 +314,7 @@ Module Array.
           -- eapply different_at_some_cons. eauto.
   Qed.
 
-  Lemma zipWith_set_overwrite_r {A} {B} : forall a b xa xb (f: A -> B -> B) i,
+  Lemma zipWith_set_l_overwrite_r {A} {B} : forall a b xa xb (f: A -> B -> B) i,
       get b i = Some xb ->
       (forall x, f x xb = xb) ->
       zipWith (set a i xa) b f = zipWith a b f.
@@ -326,7 +328,7 @@ Module Array.
         * erewrite IHa; eauto.
   Qed.
 
-  Lemma zipWith_set_overwrite_l {A} {B} : forall a b xa xb (f: A -> B -> A) i,
+  Lemma zipWith_set_l_overwrite_l {A} {B} : forall a b xa xb (f: A -> B -> A) i,
       get b i = Some xb ->
       (forall x, f x xb = x) ->
       zipWith (set a i xa) b f = set (zipWith a b f) i xa.
@@ -339,12 +341,25 @@ Module Array.
         congruence.
       * erewrite IHa; eauto.
   Qed.
+
+  Lemma zipWith_set_r_overwrite {A} {B} : forall a b xb (f: A -> B -> B) i,
+    (forall x, f x xb = xb) ->
+    zipWith a (set b i xb) f = set (zipWith a b f) i xb.
+  Proof.
+    induction a; intros b xb f i H; simpl in *; auto.
+    destruct b eqn:AB; simpl in *; auto.
+    destruct i eqn:I; simpl in *; try congruence.
+    rewrite IHa; auto.
+  Qed.
   
 End Array.
 
 
 (* Regsdata *)
 Module RegsData : CDATA.
+  
+  (* Definitions *)
+  
   Definition val : Type := option nat.
   
   Inductive t' : Type :=
@@ -377,35 +392,9 @@ Module RegsData : CDATA.
     | None => old
     | Some _ => new
     end.
-
-  Lemma get_most_recent_assoc : forall x y z,
-      get_most_recent x (get_most_recent y z) = get_most_recent (get_most_recent x y) z.
-  Proof.
-    intros x y z.
-    destruct z; destruct y; simpl; reflexivity.
-  Qed.
   
   Definition merge_arrays (a_old a_new : Array.t val) : Array.t val :=
     Array.zipWith a_old a_new get_most_recent.
-
-  (* list is more recent than arrays
-     closer to start of list => more recent 
-     -> should add elements at the end of the list first, so that they can be overwritten later 
-     don't overwrite if list element is None
-   *)
-  Fixpoint add_list_to_arrays (l: list (nat * val * val))
-    (a_cp: Array.t val) (a_clk: Array.t val) : (Array.t val) * (Array.t val) :=
-    match l with
-    | [] => (a_cp, a_clk)
-    | (i, cp, clk) :: l' =>
-        let (a_cp', a_clk') := add_list_to_arrays l' a_cp a_clk in
-        match cp, clk with
-        | None, None => (a_cp', a_clk')
-        | Some v_cp, None => (Array.set a_cp' i cp, a_clk')
-        | None, Some v_clk => (a_cp', Array.set a_clk' i clk)
-        | Some v_cp, Some v_clk => (Array.set a_cp i cp, Array.set a_clk i clk)
-        end
-    end.
 
   Fixpoint merge_new_list_old_array (a: Array.t val) (l: list (nat * val)) : (Array.t val) :=
     match l with
@@ -418,27 +407,7 @@ Module RegsData : CDATA.
         end
     end.
 
-  (* array is more recent than list
-   only add list elem if what what there before is None *)
-  Fixpoint add_arrays_to_list (l: list (nat * val * val))
-    (a_cp: Array.t val) (a_clk: Array.t val) : (Array.t val) * (Array.t val) :=
-    match l with
-    | [] => (a_cp, a_clk)
-    | (i, cp, clk) :: l' =>
-        (* add cp clk to arrays if what is already there is None *)
-        let (a_cp', a_clk') :=
-          match Array.get a_cp i, Array.get a_clk i with
-          | Some None, Some None => (Array.set a_cp i cp, Array.set a_clk i clk)
-          | Some None, _ => (Array.set a_cp i cp, a_clk)
-          | _, Some None => (a_cp, Array.set a_clk i clk)
-          | _, _ => (a_cp, a_clk)
-          end in
-        (* then recursively call *)
-        add_arrays_to_list l' a_cp' a_clk'
-    end.
-
-  Fixpoint merge_new_array_old_list (l: list (nat * val))
-    (a: Array.t val) : (Array.t val) :=
+  Fixpoint merge_new_array_old_list (l: list (nat * val)) (a: Array.t val) : (Array.t val) :=
     match l with
     | [] => a
     | (i, e) :: l' =>
@@ -453,26 +422,6 @@ Module RegsData : CDATA.
 
   Definition list_to_array (size: nat) (l: list (nat * val)) : (Array.t val) :=
     merge_new_list_old_array (Array.make size None) l.
-
-  (* t1 is old, t2 is recent *)
-  Definition compress' (p: p) (t1: t) (t2: t): t :=
-    match t1, t2 with
-    | Complete a_cp1 a_clk1, Complete a_cp2 a_clk2 =>
-        Complete (merge_arrays a_cp1 a_cp2) (merge_arrays a_clk1 a_clk2)
-    | Complete a_cp1 a_clk1, Incomplete l2 =>
-        let (a_cp, a_clk) := add_list_to_arrays l2 a_cp1 a_clk1 in
-        Complete a_cp a_clk
-    | Incomplete l1, Complete a_cp2 a_clk2 =>
-        let (a_cp, a_clk) := add_arrays_to_list l1 a_cp2 a_clk2 in
-        Complete a_cp a_clk
-    | Incomplete l1, Incomplete l2 =>
-        let l := l2 ++ l1 in
-        if Nat.leb p (length l)
-        then
-          let (a_cp, a_clk) := add_list_to_arrays l (Array.make p None) (Array.make p None) in
-          Complete a_cp a_clk
-        else Incomplete l
-    end.
 
   Definition all_to_cp (x : nat * val * val) : (nat * val) :=
     match x with
@@ -500,11 +449,22 @@ Module RegsData : CDATA.
         let l := l2 ++ l1 in
         if Nat.leb p (length l)
         then
-          let a_cp := merge_new_list_old_array (Array.make p None) (map all_to_cp l) in
-          let a_clk := merge_new_list_old_array (Array.make p None) (map all_to_clk l) in
+          let a_cp := list_to_array p (map all_to_cp l) in
+          let a_clk := list_to_array p (map all_to_clk l) in
           Complete a_cp a_clk
         else Incomplete l
     end.
+
+  (* Properities *)
+
+  (* Validity *)
+
+  Lemma get_most_recent_assoc : forall x y z,
+      get_most_recent x (get_most_recent y z) = get_most_recent (get_most_recent x y) z.
+  Proof.
+    intros x y z.
+    destruct z; destruct y; simpl; reflexivity.
+  Qed.
   
   Lemma merge_arrays_length : forall a b,
       Array.length (merge_arrays a b) = min (Array.length a) (Array.length b).
@@ -541,6 +501,15 @@ Module RegsData : CDATA.
       + apply IHl.
   Qed.
 
+  Lemma list_to_array_length : forall l size,
+      Array.length (list_to_array size l) = size.
+  Proof.
+    intros.
+    unfold list_to_array.
+    rewrite <- merge_new_list_old_array_length.
+    apply Array.length_make.
+  Qed.
+
   Lemma compress_valid : forall x y p,
       is_valid p x ->
       is_valid p y ->
@@ -558,8 +527,7 @@ Module RegsData : CDATA.
     - repeat rewrite <- merge_new_array_old_list_length.
       assumption.
     - destruct (p <=? length (ly ++ lx)) eqn:L; simpl.
-      + repeat rewrite <- merge_new_list_old_array_length.
-        split; apply Array.length_make.
+      + repeat rewrite list_to_array_length; auto.
       + split.
         * apply leb_complete_conv in L.
           assumption.
@@ -568,10 +536,13 @@ Module RegsData : CDATA.
           split; assumption.
   Qed.
 
-  Lemma merge_arrays_new_is_None : forall a,
-      merge_arrays a (Array.make (Array.length a) None) = a.
+  (* Equivalence to merging arrays *)
+
+  Lemma merge_arrays_new_is_None : forall a size,
+      size = Array.length a ->
+      merge_arrays a (Array.make size None) = a.
   Proof.
-    intros a.
+    intros a size H.
     unfold merge_arrays.
     apply Array.zipWith_neutral_r.
     - intros x y Hin.
@@ -675,7 +646,7 @@ Module RegsData : CDATA.
     induction l; intros arr; simpl in *.
     - unfold list_to_array. simpl.
       symmetry.
-      apply merge_arrays_new_is_None.
+      apply merge_arrays_new_is_None; auto.
     - destruct a as [i e].
       destruct e.
       + rewrite IHl.
@@ -712,10 +683,17 @@ Module RegsData : CDATA.
       + destruct (i =? j) eqn:Hij.
         * apply Nat.eqb_eq in Hij. subst.
           (* j is valid *)
+          assert (J: j < Array.length arr) by
+            (erewrite <- Array.length_set; apply Array.get_valid; eexists; eauto).
           (* destruct get arr j -> set later in j anyways *) 
-          rewrite Array.get_set_eq in A.
+          rewrite Array.get_set_eq in A; auto.
           injection A as A. subst.
-          admit. admit.
+          destruct (@Array.get val arr j) eqn:A'.
+          -- destruct v; auto.
+             rewrite <- IHl.
+             rewrite Array.set_overwrite.
+             reflexivity.
+          -- auto.
         * apply Nat.eqb_neq in Hij.
           rewrite Array.get_set_neq in A; auto.
           rewrite A.
@@ -734,8 +712,8 @@ Module RegsData : CDATA.
       rewrite Array.length_set in A.
       apply Array.get_invalid in A.
       rewrite A.
-      auto.      
-  Admitted.
+      auto. 
+  Qed.
 
   Lemma merge_new_array_old_list_equiv : forall l a,
       merge_new_array_old_list l a =
@@ -752,13 +730,13 @@ Module RegsData : CDATA.
           unfold list_to_array. simpl.
           destruct e eqn:E; simpl in *.
           -- unfold merge_arrays.
-             rewrite Array.zipWith_set_overwrite_r with (xb:= Some n); auto.
+             rewrite Array.zipWith_set_l_overwrite_r with (xb:= Some n); auto.
           -- auto.
         * (* array has none, so list writes *)
           unfold list_to_array in *.
           unfold merge_arrays in *. simpl.
           destruct e eqn:E; simpl in *.
-          -- rewrite Array.zipWith_set_overwrite_l with (xb:=None) (b:= arr); auto.
+          -- rewrite Array.zipWith_set_l_overwrite_l with (xb:=None) (b:= arr); auto.
              rewrite <- IHl.
              apply merge_new_array_old_list_set_array.
           -- rewrite <- IHl.
@@ -772,7 +750,9 @@ Module RegsData : CDATA.
           rewrite Array.length_make.
           assumption.
         * auto.
-  Admitted.
+  Qed.
+
+  (* Associativity *)
   
   Lemma merge_arrays_assoc : forall x y z,
       merge_arrays x (merge_arrays y z) = merge_arrays (merge_arrays x y) z.
@@ -783,6 +763,24 @@ Module RegsData : CDATA.
     apply get_most_recent_assoc.
   Qed.
 
+  Lemma list_to_array_app : forall l l' p,
+      list_to_array p (l ++ l') = merge_arrays (list_to_array p l') (list_to_array p l).
+  Proof.
+    induction l; intros l' p;
+    unfold list_to_array in *; simpl in *.
+    - rewrite merge_arrays_new_is_None; auto.
+      rewrite <- merge_new_list_old_array_length.
+      rewrite Array.length_make.
+      reflexivity.
+    - destruct a as [i e].
+      destruct e eqn:E.
+      + rewrite IHl.
+        unfold merge_arrays.
+        symmetry.
+        rewrite Array.zipWith_set_r_overwrite; auto.
+      + auto.
+  Qed.
+
   Lemma compress_assoc : forall x y z p,
       is_valid p x ->
       is_valid p y ->
@@ -790,24 +788,36 @@ Module RegsData : CDATA.
       compress p x (compress p y z) = compress p (compress p x y) z.
   Proof.
     intros x y z p Hx Hy Hz.
-    destruct x as [cpx clkx | lx], y as [cpy clky | ly], z as [cpz clkz | lz].
-    - simpl.
-      repeat rewrite merge_arrays_assoc.
+    destruct x as [cpx clkx | lx], y as [cpy clky | ly], z as [cpz clkz | lz];
+      destruct Hx as [Hx Hx']; destruct Hy as [Hy Hy']; destruct Hz as [Hz Hz'];
+      repeat match goal with
+        | [ |- ?x = ?x] => reflexivity
+        | [ H : Array.length ?x = _ |- context[Array.length ?x]] => rewrite H
+        | [ |- context[Init.Nat.min ?x ?x]] => rewrite Nat.min_id
+        | [ |- context[merge_arrays _ (merge_arrays _ _)]] => rewrite merge_arrays_assoc
+        | [ |- context[merge_new_list_old_array _ _]] => rewrite merge_new_list_old_array_equiv
+        | [ |- context[merge_new_array_old_list _ _]] => rewrite merge_new_array_old_list_equiv
+        | [ |- context[Array.length (merge_arrays _ _)]] => rewrite merge_arrays_length
+        | [ |- context[Array.length (list_to_array _ _)]] => rewrite list_to_array_length
+        | [ |- context[map _ (_ ++ _)]] => rewrite map_app
+        | [ |- context[list_to_array _ (_ ++ _)]] => rewrite list_to_array_app
+        | [ |- context[p <=? length (lz ++ ly)]] => destruct (p <=? length (lz ++ ly)) eqn:Plz
+        | [ |- context[p <=? length (ly ++ lx)]] => destruct (p <=? length (ly ++ lx)) eqn:Pyx
+        | _ => simpl in *
+        end.
+    
+    all: repeat rewrite length_app in *; try rewrite Nat.add_assoc.
+    
+    1, 2: assert(T: p <=? length lz + length ly + length lx = true)
+      by (rewrite Nat.leb_le in *; lia);
+    rewrite T; reflexivity.
+
+    destruct (p <=? length lz + length ly + length lx) eqn:L.
+    - reflexivity.
+    - rewrite app_assoc.
       reflexivity.
-    - simpl in *.
-      destruct Hx as [Hx Hx'].
-      destruct Hy as [Hy Hy'].
-      rewrite merge_new_list_old_array_equiv.
-      rewrite merge_new_list_old_array_equiv with (a:=clky).
-      rewrite merge_new_list_old_array_equiv with (a:=(merge_arrays cpx cpy)).
-      rewrite merge_new_list_old_array_equiv with (a:=(merge_arrays clkx clky)).
-      repeat rewrite merge_arrays_assoc.
-      repeat rewrite merge_arrays_length.
-      rewrite Hx, Hx', Hy, Hy'.
-      rewrite Nat.min_id.
-      reflexivity.
-      (* might do a function for single array and separate *)
-  Admitted.
+    
+  Qed.
   
 End RegsData.
 
