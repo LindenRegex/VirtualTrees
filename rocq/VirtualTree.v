@@ -767,25 +767,31 @@ Module VT (Data : CDATA).
   Lemma insert_get_some_in_tree : forall t p id d c_old o,
       is_valid_tree_structure t ->
       is_valid_tree_ids t ->
+      is_valid_tree_data t p ->
       is_valid_id t id ->
+      Data.is_valid p d ->
+      (forall o', o = Some o' -> Data.is_valid p o') -> 
       get_compressed_data_in_tree' id t p o = Some c_old -> (* case where data already existed for id *)
       get_compressed_data_in_tree' id (insert_in_tree id d t p) p o = Some (Data.compress p c_old d).
   Proof.
-    intros t; induction t; intros param i d c_old o Hs Hids Hi H; simpl in *; auto.
+    intros t; induction t; intros param i d c_old o Hs Hids Hdata Hi Hd Ho H; simpl in *; auto.
     - contradiction.
     - destruct (is_leaf_with_id t0 i) eqn:L.
       + apply is_Leaf_with_id in L. subst. simpl in *.
         rewrite Nat.eqb_refl in *.
-        destruct o. 
-        * injection H as H. subst.
-          rewrite Data.compress_assoc.
-          reflexivity.
+        destruct o eqn:O.
+        * injection H as H. rewrite <- H.
+          rewrite Data.compress_assoc; auto.
+          tauto.
         * injection H as H. subst.
           reflexivity.
       + simpl.
-        destruct o;
+        destruct o eqn:O;
           apply IHt; auto;
-          destruct t0; try contradiction; auto.
+          destruct t0 eqn:T0; try contradiction; auto; try tauto;
+          intros o' H'; injection H' as H'; rewrite <- H';
+          try apply Data.compress_valid;
+          try tauto; apply Ho; auto.
     - pose proof valid_id_branch_xor as XOR.
       specialize (XOR t1 t2 i Hids Hi).
       destruct Hi as [Hi | Hi].
@@ -794,6 +800,7 @@ Module VT (Data : CDATA).
           rewrite IHt1 with (c_old := t0); auto; try congruence.
           -- apply branch_children_valid_struct in Hs. tauto.
           -- apply valid_ids_branch in Hids; tauto.
+          -- tauto.
         * rewrite get_on_invalid_id with (t:=t2) in H; try congruence; try tauto.
           -- apply branch_no_seed_children in Hs. tauto.
           -- apply branch_children_valid_struct in Hs. tauto.
@@ -802,6 +809,7 @@ Module VT (Data : CDATA).
            ++ apply IHt2; auto; try congruence.
               ** apply branch_children_valid_struct in Hs. tauto.
               ** apply valid_ids_branch in Hids. tauto.
+              ** tauto.
            ++ apply insert_is_not_seed.
               apply branch_no_seed_children in Hs. tauto.
            ++ apply insert_valid_structure.
@@ -819,6 +827,7 @@ Module VT (Data : CDATA).
   Lemma insert_get_some : forall t p id d c_old,
       is_valid_state (t, p) ->
       is_valid_id t id ->
+      Data.is_valid p d ->
       get_compressed_data id (t, p) = Some c_old -> (* case where data already existed for id *)
       get_compressed_data id (insert id d (t, p)) = Some (Data.compress p c_old d).
   Proof.
@@ -826,6 +835,7 @@ Module VT (Data : CDATA).
     unfold get_compressed_data.
     unfold insert.
     apply insert_get_some_in_tree; auto.
+    intros. congruence.
   Qed.
 
   Lemma insert_get_unchanged : forall t p i j d o o',
@@ -1283,7 +1293,7 @@ Module VT (Data : CDATA).
       + specialize (IHt param i). rewrite D in IHt. simpl in IHt.
         apply IHt.
         assumption.
-      + apply no_dup_one.
+      + apply NoDupHelpers.no_dup_one.
     - unfold is_valid_tree_ids in *.
       destruct (is_branch_with_id i t1); simpl in *.
       + eapply NoDup_app_remove_l; eauto.
