@@ -84,7 +84,7 @@ Module VT (Data : CDATA).
   (** Inductive type *)
 
   Inductive VirtualTree : Type := (* the actual tree with root, branch, node and leaf *)
-  | Seed
+  | Stump
   | Node (data: Data.t) (child: VirtualTree)
   | Branch (l: VirtualTree) (r: VirtualTree)
   | Leaf (id: nat).
@@ -95,15 +95,15 @@ Module VT (Data : CDATA).
 
   Fixpoint is_valid_tree_structure (t: VirtualTree) : Prop :=
     match t with
-    | Seed => True
+    | Stump => True
     | Node _ c => match c with
-                  | Seed => False
+                  | Stump => False
                   | Node _ _ => False
                   | _ => is_valid_tree_structure c
                   end
     | Branch l r => match l, r with
-                    | Seed, _ => False
-                    | _, Seed => False
+                    | Stump, _ => False
+                    | _, Stump => False
                     | _, _ => (is_valid_tree_structure l) /\ (is_valid_tree_structure r)
                     end
     | Leaf _ => True
@@ -113,7 +113,7 @@ Module VT (Data : CDATA).
 
   Fixpoint get_all_ids (t: VirtualTree) : list nat :=
     match t with
-    | Seed => []
+    | Stump => []
     | Node d c => get_all_ids c
     | Branch l r => (get_all_ids l) ++ (get_all_ids r)
     | Leaf id => [id]
@@ -125,7 +125,7 @@ Module VT (Data : CDATA).
 
   Fixpoint is_valid_tree_data (t: VirtualTree) (p: Data.p) : Prop :=
     match t with
-    | Seed => True
+    | Stump => True
     | Node d c => Data.is_valid p d /\ is_valid_tree_data c p
     | Branch l r => is_valid_tree_data l p /\ is_valid_tree_data r p
     | Leaf _ => True
@@ -135,7 +135,7 @@ Module VT (Data : CDATA).
 
   Fixpoint contains_id (t: VirtualTree) (id: nat) : bool :=
     match t with
-    | Seed => false
+    | Stump => false
     | Node _ c => contains_id c id
     | Branch l r => contains_id l id || contains_id r id
     | Leaf i => i =? id
@@ -143,7 +143,7 @@ Module VT (Data : CDATA).
 
   Fixpoint is_valid_id (t: VirtualTree) (id: nat) : Prop :=
     match t with
-    | Seed => False
+    | Stump => False
     | Node _ c => is_valid_id c id
     | Branch l r => is_valid_id l id \/ is_valid_id r id
     | Leaf i => i = id
@@ -151,7 +151,7 @@ Module VT (Data : CDATA).
 
   Fixpoint max_id_in_tree (t: VirtualTree) : nat :=
     match t with
-    | Seed => 0 (*removed the option for cleaner split *)
+    | Stump => 0 (*removed the option for cleaner split *)
     | Node _ c => max_id_in_tree c
     | Branch l r => Nat.max (max_id_in_tree l) (max_id_in_tree r)
     | Leaf i => i
@@ -179,7 +179,7 @@ Module VT (Data : CDATA).
   (* TODO clean this up *)
 
   Definition empty (param: Data.p) : State :=
-    (Seed, param).
+    (Stump, param).
 
   Definition with_one_leaf (param: Data.p) : State :=
     (Leaf 0, param).
@@ -192,15 +192,15 @@ Module VT (Data : CDATA).
     | _ => false
     end.
 
-  Definition is_seed (t: VirtualTree) : bool :=
+  Definition is_stump (t: VirtualTree) : bool :=
     match t with
-    | Seed => true
+    | Stump => true
     | _ => false
     end.
 
   Fixpoint is_branch_with_id (id : nat) (t: VirtualTree) : bool :=
     match t with
-    | Seed => false
+    | Stump => false
     | Node _ c => is_branch_with_id id c
     | Branch _ _ => false
     | Leaf i => Nat.eqb i id
@@ -212,7 +212,7 @@ Module VT (Data : CDATA).
 
   Fixpoint insert_in_tree (id: nat) (new: Data.t) (t: VirtualTree) (p: Data.p) : VirtualTree :=
     match t with
-    | Seed => Seed
+    | Stump => Stump
     | Node d c => if is_leaf_with_id c id
                   then Node (Data.compress p d new) c
                   else Node d (insert_in_tree id new c p)
@@ -229,7 +229,7 @@ Module VT (Data : CDATA).
 
   Fixpoint split_in_tree (id: nat) (new_id: nat) (t: VirtualTree) : VirtualTree :=
     match t with
-    | Seed => Seed
+    | Stump => Stump
     | Node d c => Node d (split_in_tree id new_id c)
     | Branch l r => Branch (split_in_tree id new_id l) (split_in_tree id new_id r)
         (*if (contains_id l id)
@@ -249,11 +249,11 @@ Module VT (Data : CDATA).
 
   Fixpoint delete_in_tree (id : nat) (t: VirtualTree) (p: Data.p) : VirtualTree :=
     match t with
-    | Seed => Seed
+    | Stump => Stump
     | Node d c =>
         let c' := delete_in_tree id c p in
         match c' with
-        | Seed => Seed
+        | Stump => Stump
         | Branch _ _ => Node d c'
         | Node d'' c'' => Node (Data.compress p d d'') c''
         | Leaf i => Node d c'
@@ -264,7 +264,7 @@ Module VT (Data : CDATA).
                          then l
                          else Branch (delete_in_tree id l p) (delete_in_tree id r p)
     | Leaf i => if Nat.eqb i id
-                then Seed
+                then Stump
                 else Leaf i
     end.
 
@@ -284,7 +284,7 @@ Module VT (Data : CDATA).
   (* TODO redefine top down *)
   Fixpoint get_compressed_data_in_tree_old (id: nat) (t: VirtualTree) (p: Data.p): triple_option Data.t :=
     match t with
-    | Seed => TNone
+    | Stump => TNone
     | Node d c =>
         match get_compressed_data_in_tree_old id c p with
         | TNone => TNone
@@ -308,7 +308,7 @@ Module VT (Data : CDATA).
 
   Fixpoint get_compressed_data_in_tree' (id: nat) (t: VirtualTree) (p: Data.p) (acc: option Data.t): option Data.t :=
     match t with
-    | Seed => acc
+    | Stump => acc
     | Node d c =>
         let acc' := match acc with
                     | Some a => Some (Data.compress p a d)
@@ -458,20 +458,20 @@ Module VT (Data : CDATA).
     congruence.
   Qed.
 
-  Lemma is_Seed : forall t,
-      is_seed t = true -> t = Seed.
+  Lemma is_Stump : forall t,
+      is_stump t = true -> t = Stump.
   Proof.
     intros t H; destruct t; simpl in *; try congruence.
   Qed.
 
-  Lemma is_not_Seed : forall t,
-      is_seed t = false -> t <> Seed.
+  Lemma is_not_Stump : forall t,
+      is_stump t = false -> t <> Stump.
   Proof.
     intros t H; destruct t; simpl in *; congruence.
   Qed.
 
   Lemma node_of_child_with_valid_structure : forall d c,
-      c <> Seed ->
+      c <> Stump ->
       (forall d' c', c <> Node d' c') ->
       is_valid_tree_structure c ->
       is_valid_tree_structure (Node d c).
@@ -483,8 +483,8 @@ Module VT (Data : CDATA).
   Qed.
 
   Lemma branch_of_children_with_valid_structure : forall l r,
-      l <> Seed ->
-      r <> Seed ->
+      l <> Stump ->
+      r <> Stump ->
       is_valid_tree_structure l ->
       is_valid_tree_structure r ->
       is_valid_tree_structure (Branch l r).
@@ -500,9 +500,9 @@ Module VT (Data : CDATA).
     intros l r H; simpl in *; destruct l, r; try contradiction; tauto.
   Qed.
 
-  Lemma branch_no_seed_children : forall l r,
+  Lemma branch_no_Stump_children : forall l r,
       is_valid_tree_structure (Branch l r) ->
-      l <> Seed /\ r <> Seed.
+      l <> Stump /\ r <> Stump.
   Proof.
     intros l r H; simpl in *; split; destruct _; try contradiction; destruct _; try congruence.
   Qed.
@@ -510,7 +510,7 @@ Module VT (Data : CDATA).
   (** Get helpers *)
 
   Lemma get_on_invalid_id : forall t p i o,
-      t <> Seed ->
+      t <> Stump ->
       is_valid_tree_structure t ->
       ~ is_valid_id t i ->
       get_compressed_data_in_tree' i t p o = None.
@@ -528,10 +528,10 @@ Module VT (Data : CDATA).
       + assumption.
     - rewrite IHt1; simpl.
       + apply IHt2.
-        * apply branch_no_seed_children in Hs. tauto.
+        * apply branch_no_Stump_children in Hs. tauto.
         * apply branch_children_valid_struct in Hs. tauto.
         * tauto.
-      + apply branch_no_seed_children in Hs. tauto.
+      + apply branch_no_Stump_children in Hs. tauto.
       + apply branch_children_valid_struct in Hs. tauto.
       + tauto.
     - destruct (id =? i) eqn:I.
@@ -561,7 +561,7 @@ Module VT (Data : CDATA).
         * eapply IHt2; try tauto.
           -- apply branch_children_valid_struct in Hs. tauto.
           -- apply valid_ids_branch in Hids. tauto.
-        * apply branch_no_seed_children in Hs. tauto.
+        * apply branch_no_Stump_children in Hs. tauto.
         * apply branch_children_valid_struct in Hs. tauto.
         * tauto.
     - subst.
@@ -610,8 +610,8 @@ Module VT (Data : CDATA).
     - destruct (id =? i); simpl; tauto.
   Qed.
 
-  Lemma insert_is_seed : forall t p id d,
-      insert_in_tree id d t p = Seed -> t = Seed.
+  Lemma insert_is_Stump : forall t p id d,
+      insert_in_tree id d t p = Stump -> t = Stump.
   Proof.
     intros t p id d H.
     destruct t; simpl in *; try congruence.
@@ -619,8 +619,8 @@ Module VT (Data : CDATA).
     - destruct (_ =? _); congruence.
   Qed.
 
-  Lemma insert_is_not_seed : forall t p id d,
-      t <> Seed -> (insert_in_tree id d t p) <> Seed.
+  Lemma insert_is_not_Stump : forall t p id d,
+      t <> Stump -> (insert_in_tree id d t p) <> Stump.
   Proof.
     intros t. intros.
     destruct t; simpl in *; try congruence.
@@ -645,17 +645,17 @@ Module VT (Data : CDATA).
     - simpl insert_in_tree.
       simpl in H.
       apply branch_of_children_with_valid_structure.
-      + destruct (is_seed t1) eqn:T1.
-        * apply is_Seed in T1. rewrite T1 in *.
+      + destruct (is_stump t1) eqn:T1.
+        * apply is_Stump in T1. rewrite T1 in *.
           contradiction.
-        * apply insert_is_not_seed.
-          apply is_not_Seed.
+        * apply insert_is_not_Stump.
+          apply is_not_Stump.
           assumption.
-      + destruct (is_seed t2) eqn:T2.
-        * apply is_Seed in T2. rewrite T2 in *.
+      + destruct (is_stump t2) eqn:T2.
+        * apply is_Stump in T2. rewrite T2 in *.
           destruct t1; contradiction.
-        * apply insert_is_not_seed.
-          apply is_not_Seed.
+        * apply insert_is_not_Stump.
+          apply is_not_Stump.
           assumption.
       + apply IHt1. apply branch_children_valid_struct in H. tauto.
       + apply IHt2. apply branch_children_valid_struct in H. tauto.
@@ -732,7 +732,7 @@ Module VT (Data : CDATA).
           -- apply valid_ids_branch in Hids. tauto.
           -- destruct (get_compressed_data_in_tree' i t1 param o);
                try congruence; auto.
-        * apply insert_is_not_seed. destruct t1; try contradiction; congruence.
+        * apply insert_is_not_Stump. destruct t1; try contradiction; congruence.
         * destruct t1, t2; try contradiction; apply insert_valid_structure; tauto.
         * rewrite <- insert_on_invalid_id; tauto.
     - subst.
@@ -802,7 +802,7 @@ Module VT (Data : CDATA).
           -- apply valid_ids_branch in Hids; tauto.
           -- tauto.
         * rewrite get_on_invalid_id with (t:=t2) in H; try congruence; try tauto.
-          -- apply branch_no_seed_children in Hs. tauto.
+          -- apply branch_no_Stump_children in Hs. tauto.
           -- apply branch_children_valid_struct in Hs. tauto.
       + rewrite get_on_invalid_id with (t:=t1) in H; try tauto.
         -- rewrite get_on_invalid_id.
@@ -810,13 +810,13 @@ Module VT (Data : CDATA).
               ** apply branch_children_valid_struct in Hs. tauto.
               ** apply valid_ids_branch in Hids. tauto.
               ** tauto.
-           ++ apply insert_is_not_seed.
-              apply branch_no_seed_children in Hs. tauto.
+           ++ apply insert_is_not_Stump.
+              apply branch_no_Stump_children in Hs. tauto.
            ++ apply insert_valid_structure.
               apply branch_children_valid_struct in Hs. tauto.
            ++ apply invalid_id_in_insert.
               tauto.
-        -- apply branch_no_seed_children in Hs. tauto.
+        -- apply branch_no_Stump_children in Hs. tauto.
         -- apply branch_children_valid_struct in Hs. tauto.
     - apply Nat.eqb_eq in Hi. rewrite Hi in *.
       simpl. rewrite Hi.
@@ -893,8 +893,8 @@ Module VT (Data : CDATA).
 
   (*** Split structure helpers *)
 
-  Lemma split_is_seed : forall t i i',
-      split_in_tree i i' t = Seed -> t = Seed.
+  Lemma split_is_Stump : forall t i i',
+      split_in_tree i i' t = Stump -> t = Stump.
   Proof.
     intros t i i' H.
     destruct t; simpl in *; auto; try congruence.
@@ -973,8 +973,8 @@ Module VT (Data : CDATA).
 
   (*** Split: Validity of resulting state *)
 
-  Lemma split_is_not_seed : forall t i i',
-      t <> Seed -> (split_in_tree i i' t) <> Seed.
+  Lemma split_is_not_Stump : forall t i i',
+      t <> Stump -> (split_in_tree i i' t) <> Stump.
   Proof.
     intros t i i' H.
     destruct t; simpl; try congruence.
@@ -989,7 +989,7 @@ Module VT (Data : CDATA).
     - simpl split_in_tree.
       simpl in Hs.
       apply node_of_child_with_valid_structure.
-      + apply split_is_not_seed.
+      + apply split_is_not_Stump.
         destruct t0; try contradiction; congruence.
       + intros d' c'.
         destruct (split_in_tree i i' t0) eqn:S; try congruence.
@@ -1001,9 +1001,9 @@ Module VT (Data : CDATA).
     - simpl split_in_tree.
       simpl in Hs.
       apply branch_of_children_with_valid_structure.
-      + apply split_is_not_seed.
+      + apply split_is_not_Stump.
         destruct t1; try contradiction; congruence.
-      + apply split_is_not_seed.
+      + apply split_is_not_Stump.
         destruct t1, t2; try contradiction; congruence.
       + apply IHt1.
         apply branch_children_valid_struct in Hs. tauto.
