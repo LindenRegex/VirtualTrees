@@ -455,7 +455,7 @@ Module RegsData : CDATA.
         else Incomplete l
     end.
 
-  (* Properities *)
+  (* Properties *)
 
   (* Validity *)
 
