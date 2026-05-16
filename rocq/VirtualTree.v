@@ -73,6 +73,15 @@ Module NoDupHelpers.
       rewrite in_app_iff in Hin.
       apply no_dup_remove; auto.
   Qed.
+
+  Lemma no_dup_app_remove {A} : forall (l l' : list A),
+      NoDup (l ++ l') ->
+      NoDup l /\ NoDup l'.
+  Proof.
+    intros. split.
+    - eapply NoDup_app_remove_r. eauto.
+    - eapply NoDup_app_remove_l. eauto.
+  Qed.
   
 End NoDupHelpers.
 
@@ -1729,11 +1738,54 @@ Module VT (Data : CDATA).
     - apply delete_valid_data; tauto.
   Qed.
 
+  Lemma delete_invalid_id_tree : forall t p id,
+      is_valid_tree_structure t ->
+      is_valid_tree_ids t ->
+      ~ is_valid_id (delete_in_tree id t p) id.
+  Proof.
+    intros t param i; induction t; intros Hs Hids; unfold is_valid_tree_ids in *; simpl in *.
+    - tauto.
+    - destruct (delete_in_tree i t0 param) eqn:D; simpl in *; try tauto.
+      all: apply IHt; auto;
+        destruct t0; try contradiction; auto.
+    - pose proof valid_id_branch_xor as XOR.
+      specialize (XOR _ _ i Hids).
+      destruct (is_branch_with_id i t1) eqn:B1.
+      + apply get_all_ids_branch_with_id in B1.
+        assert (I: In i (get_all_ids t1)) by (rewrite B1; simpl; auto).
+        apply valid_in_ids in I.
+        pose proof or_introl as OIL. specialize (OIL _ (is_valid_id t2 i) I).
+        simpl in XOR. apply XOR in OIL.
+        tauto.
+      + destruct (is_branch_with_id i t2) eqn:B2.
+        * apply get_all_ids_branch_with_id in B2.
+          assert (I: In i (get_all_ids t2)) by (rewrite B2; simpl; auto).
+          apply valid_in_ids in I.
+          pose proof or_intror as OIL. specialize (OIL (is_valid_id t1 i) _ I).
+          simpl in XOR. apply XOR in OIL.
+          tauto.
+        * simpl.
+          apply branch_children_valid_struct in Hs.
+          destruct Hs as [Hs1 Hs2].
+          apply NoDupHelpers.no_dup_app_remove in Hids.
+          destruct Hids as [Hids1 Hids2].
+          specialize (IHt1 Hs1 Hids1).
+          specialize (IHt2 Hs2 Hids2).
+          tauto.
+    - destruct (id =? i) eqn:I; simpl in *; try tauto.
+      apply Nat.eqb_neq in I.
+      assumption.
+  Qed.          
+
   Lemma delete_invalid_id : forall t p id,
     is_valid_state (t, p) ->
     let s' := delete id (t, p) in
     ~ is_valid_id (tree s') id.
-  Admitted.
+  Proof.
+    intros t p i [Hs [Hids Hd]].
+    unfold delete. simpl.
+    apply delete_invalid_id_tree; auto.
+  Qed.
 
   Lemma delete_get_on_deleted : forall t p i,
       is_valid_state (t, p) ->
