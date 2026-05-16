@@ -482,6 +482,13 @@ Module VT (Data : CDATA).
     congruence.
   Qed.
 
+  Lemma node_child_valid_struct : forall d c,
+      is_valid_tree_structure (Node d c) ->
+      is_valid_tree_structure c.
+  Proof.
+    intros d c H; simpl in *; destruct c; try contradiction; auto.
+  Qed.
+
   Lemma branch_of_children_with_valid_structure : forall l r,
       l <> Stump ->
       r <> Stump ->
@@ -1330,6 +1337,52 @@ Module VT (Data : CDATA).
       + congruence.
   Qed.
 
+  Lemma delete_is_node : forall t p i d c,
+      is_valid_tree_structure t ->
+      is_valid_tree_ids t ->
+      delete_in_tree i t p = Node d c ->
+      (exists c', t = Node d c' /\ c = delete_in_tree i c' p /\ (forall d_ c_, c <> Node d_ c_)) \/
+        (exists l, t = Branch l (Node d c) /\ is_branch_with_id i l = true) \/
+        (exists r, t = Branch (Node d c) r /\ is_branch_with_id i r = true) \/
+        (exists l d' d'', t = Node d'' (Branch l (Node d' c)) /\ is_branch_with_id i l = true /\ d = Data.compress p d'' d') \/
+        (exists r d' d'', t = Node d'' (Branch (Node d' c) r) /\ is_branch_with_id i r = true /\ d = Data.compress p d'' d').
+  Proof.
+    intros t param i. induction t; intros d c Hs Hids H; simpl in *; try congruence.
+    - unfold is_valid_tree_ids in *.
+      destruct (delete_in_tree i t0 param) eqn:D; try congruence.
+      + (* one of the branch cases *) admit.
+      + left.
+        exists t0.
+        injection H as Hd Hb.
+        repeat split; congruence.
+      + left.
+        exists t0.
+        injection H as Hd Hc.
+        repeat split; congruence.
+      
+      (*destruct t0 eqn:T0; try contradiction.
+      + simpl in H, Hs, Hids.
+        destruct (is_branch_with_id i v1) eqn:B1.
+        * destruct v2 eqn:V2; try congruence.
+          -- right. right. right. left.
+             exists v1, data0, data, v.
+             repeat split; congruence.
+          -- left.
+             exists data, t0.
+             rewrite T0. admit.*)
+    - right.
+      destruct (is_branch_with_id i t1) eqn:B1.
+      + left.
+        exists t1.
+        split; congruence.
+      + destruct (is_branch_with_id i t2) eqn:B2.
+        * right. left.
+          exists t2.
+          split; congruence.
+        * congruence.
+    - destruct (id =? i); congruence.
+  Admitted.
+        
   Lemma delete_is_branch : forall t p i l r,
       is_valid_tree_structure t ->
       is_valid_tree_ids t ->
@@ -1395,39 +1448,6 @@ Module VT (Data : CDATA).
     - destruct (id =? i); congruence.
   Qed.
 
-  Lemma delete_is_branch' : forall t p i l r,
-      is_valid_tree_structure t ->
-      delete_in_tree i t p = Branch l r ->
-      t = Branch l r \/
-        (exists l' r', t = Branch l' r' /\
-                         (is_branch_with_id i l' = true /\ r' = Branch l r \/
-                            is_branch_with_id i r' = true /\ l' = Branch l r)).
-  Proof.
-    intros t param i. induction t; intros l r Hs H; simpl in *; try congruence.
-    - destruct (delete_in_tree i t0 param); congruence.
-    - destruct (contains_id (Branch t1 t2) i) eqn:I; simpl in I.
-      + right.
-        destruct (is_branch_with_id i t1) eqn:B1.
-        * exists t1, t2.
-          split; try reflexivity.
-          left. split; auto.
-        * destruct (is_branch_with_id i t2) eqn:B2.
-          -- exists t1, t2.
-             split; try reflexivity.
-             right. split; auto.
-          -- apply branch_children_valid_struct in Hs.
-        admit.
-      + left.
-        apply Bool.orb_false_iff in I. destruct I as [I1 I2].
-        rewrite not_contains_valid_id in I1, I2.
-        rewrite delete_on_invalid_id in H; auto. rewrite delete_on_invalid_id in H; auto.
-        apply is_branch_with_invalid_id in I1, I2.
-        rewrite I1, I2 in H.
-        assumption.
-        all: apply branch_children_valid_struct in Hs; tauto.
-    - destruct (id =? i); congruence.
-  Admitted.
-
   Lemma delete_is_leaf : forall t p i j,
       is_valid_tree_structure t ->
       delete_in_tree i t p = Leaf j ->
@@ -1454,29 +1474,6 @@ Module VT (Data : CDATA).
         injection H as H.
         lia.
   Qed.
-
-  Definition is_branch_with_id_prop id t : Prop :=
-    match is_branch_with_id id t with
-    | true => True
-    | _ => False
-    end.
-
-  Lemma delete_is_node : forall t id p d c,
-      delete_in_tree id t p = Node d c ->
-      (forall d' c', t <> Node d' c') -> 
-        (exists l r, t = Branch l r /\
-                       (is_branch_with_id_prop id l /\ r = Node d c \/
-                          is_branch_with_id_prop id r /\ l = Node d c)).
-  Proof.
-    intros t; induction t; intros; simpl in *; try congruence.
-    - exists t1, t2.
-      split; auto.
-      destruct (is_branch_with_id id t1) eqn:B1.
-      + left. admit.
-      + destruct (is_branch_with_id id t2) eqn:B2; try congruence.
-        right. admit.
-    - destruct (id =? id0); congruence.
-  Admitted.
 
   Lemma delete_ids' : forall t p id,
       incl (get_all_ids (delete_in_tree id t p)) (get_all_ids t).
@@ -1532,8 +1529,7 @@ Module VT (Data : CDATA).
           destruct D as [D | [D | [d D]]]; subst; simpl; try contradiction.
           -- apply Permutation_refl.
           -- destruct t0; simpl in *; try contradiction; congruence.
-        * apply delete_is_node in D. destruct D as [l [r [D D']]]. subst. simpl.
-          admit. admit.
+        * apply delete_is_node in D; admit.
         * (* TODO delete is branch -> branch (2 poss) *)
           apply delete_is_branch in D.
           unfold is_valid_tree_ids in *. simpl in *.
@@ -1624,36 +1620,142 @@ Module VT (Data : CDATA).
   Qed.
         
   Lemma delete_valid_data : forall t p id,
+      is_valid_tree_structure t ->
+      is_valid_tree_ids t ->
       is_valid_tree_data t p ->
       is_valid_tree_data (delete_in_tree id t p) p.
   Proof.
-    intros t; induction t; intros param i H; simpl in *; auto.
-    - destruct (delete_in_tree i t0 param) eqn:D; simpl in *; auto.
-      + (* TODO v is a branch of original tree -> all valid data *) admit. 
-      + (* TODO the only way for delete to be a branch is if it was a branch before *) admit.
-      + tauto.
-    - destruct (is_branch_with_id i t1).
+    intros t; induction t; intros param i Hs Hids H; simpl in *; auto.
+    - apply node_child_valid_struct with (d:=data) in Hs.
+      unfold is_valid_tree_ids in *.
+      destruct (delete_in_tree i t0 param) eqn:D; simpl in *; auto.
+      + apply delete_is_node in D; try tauto. destruct D as [D | [D | [D | [D | D]]]].
+        2, 3: destruct D as [b [D D']];
+          rewrite D in *; simpl in *;
+          split; try apply Data.compress_valid; try tauto.
+        2, 3: destruct D as [b [d' [d'' [D [D' D'']]]]];
+          rewrite D in *; simpl in H;
+          split; try rewrite D''; repeat apply Data.compress_valid; try tauto.
+        * destruct D as [c' [D [D' D'']]].
+          destruct H as [Hdata H].
+          specialize (IHt _ i Hs Hids H).
+          rewrite D in *. simpl in *.
+          split.
+          -- apply Data.compress_valid; try tauto.
+          -- destruct (delete_in_tree i c' param) eqn:C; try congruence;
+               rewrite <- D' in IHt; simpl in IHt; tauto.
+      + apply delete_is_branch in D; try tauto. destruct D as [D | [D | [D | D]]].
+        3, 4: destruct D as [d [D D']];
+          rewrite D in H; simpl in H;
+          repeat split; tauto.
+        * destruct D as [l' [D D']].
+          destruct H as [H H'].
+          specialize (IHt _ i Hs Hids H').
+          rewrite D in H', IHt.
+          simpl in H'.
+          repeat split; try tauto.
+          simpl in IHt.
+          admit.
+        * admit.
+      + split; tauto.
+    - apply branch_children_valid_struct in Hs.
+      unfold is_valid_tree_ids in *. simpl in Hids.
+      destruct (is_branch_with_id i t1).
       + tauto.
       + destruct (is_branch_with_id i t2).
         * tauto.
         * simpl.
-          split; [apply IHt1 | apply IHt2]; tauto.
+          Search (NoDup (_ ++ _)).
+          split; [apply IHt1 | apply IHt2]; try tauto;
+            [eapply NoDup_app_remove_r | eapply NoDup_app_remove_l]; eauto.
+    - destruct (id =? i); simpl; auto.
   Admitted.
+
+  Lemma delete_valid_structure : forall t p id,
+      is_valid_tree_structure t ->
+      is_valid_tree_ids t ->
+      is_valid_tree_structure (delete_in_tree id t p).
+  Proof.
+    intros t param i; induction t; intros Hs Hids; simpl in *; auto.
+    - unfold is_valid_tree_ids in *.
+      destruct (delete_in_tree i t0 param) eqn:D; simpl in *.
+      + tauto.
+      + apply IHt.
+        * destruct t0; try contradiction; auto.
+        * assumption.
+      + apply IHt.
+        * destruct t0; try contradiction; auto.
+        * assumption.
+      + tauto.
+    - unfold is_valid_tree_ids in *.
+      destruct (is_branch_with_id i t1) eqn:B1.
+      + apply branch_children_valid_struct in Hs. tauto.
+      + destruct (is_branch_with_id i t2) eqn:B2.
+        * apply branch_children_valid_struct in Hs. tauto.
+        * simpl in *.
+          destruct (delete_in_tree i t1 param) eqn:D1; destruct (delete_in_tree i t2 param) eqn:D2.
+          1, 2, 3, 4: apply delete_is_stump in D1;
+          try (apply branch_children_valid_struct in Hs; tauto);
+          destruct D1 as [D1 | [D1 | [d D1]]];
+          rewrite D1 in B1, Hs; simpl in B1, Hs;
+          try contradiction;
+          try rewrite Nat.eqb_refl in *; try congruence.
+          1, 5, 9: apply delete_is_stump in D2;
+          try (apply branch_children_valid_struct in Hs; tauto);
+          destruct D2 as [D2 | [D2 | [d D2]]];
+          rewrite D2 in B2, Hs; simpl in B2, Hs;
+          try destruct t1; try contradiction;
+          try rewrite Nat.eqb_refl in *; try congruence.
+          all: apply branch_children_valid_struct in Hs;
+            rewrite <- D1 in *; rewrite <- D2 in *;
+            split;
+            [apply IHt1 | apply IHt2];
+            try tauto;
+            [eapply NoDup_app_remove_r | eapply NoDup_app_remove_l]; eauto.
+    - destruct (id =? i); auto.
+  Qed.
 
   (* the output of delete is valid, and the id of the delete leaf is invalid on that tree *)
   Lemma delete_valid : forall t p id,
     is_valid_state (t, p) ->
-    is_valid_id t id ->
     let s' := delete id (t, p) in
-    is_valid_state s' /\ not (is_valid_id (tree s') id).
+    is_valid_state s'.
+  Proof.
+    intros t p id H.
+    unfold is_valid_state, delete in *. simpl in *.
+    repeat split.
+    - apply delete_valid_structure; tauto.
+    - apply delete_valid_ids; tauto.
+    - apply delete_valid_data; tauto.
+  Qed.
+
+  Lemma delete_invalid_id : forall t p id,
+    is_valid_state (t, p) ->
+    let s' := delete id (t, p) in
+    ~ is_valid_id (tree s') id.
   Admitted.
 
-  Lemma delete_get_on_deleted : forall t p i j,
+  Lemma delete_get_on_deleted : forall t p i,
       is_valid_state (t, p) ->
-      is_valid_id t i ->
       let s' := delete i (t, p) in
-      get_compressed_data j s' = None.
-  Admitted.
+      get_compressed_data i s' = None.
+  Proof.
+    intros t p i H.
+    unfold delete. simpl.
+    unfold get_compressed_data. simpl.
+    destruct (is_stump (delete_in_tree i t p)) eqn:S.
+    - apply is_Stump in S.
+      rewrite S. simpl.
+      reflexivity.
+    - apply get_on_invalid_id.
+      + apply is_not_Stump.
+        assumption.
+      + apply delete_valid with (id:=i) in H.
+        unfold delete, is_valid_state in H.
+        tauto.
+      + apply delete_invalid_id.
+        assumption.
+  Qed.
 
   Lemma delete_unchanged : forall t p i j o,
       is_valid_state (t, p) ->
@@ -1663,7 +1765,5 @@ Module VT (Data : CDATA).
       let s' := delete i (t, p) in
       get_compressed_data j s' = o.
   Admitted.
-
-  (* TODO add to validity: define validity for CData and check for each node *)
 
 End VT.
