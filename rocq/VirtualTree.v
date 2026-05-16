@@ -1638,35 +1638,17 @@ Module VT (Data : CDATA).
     - apply node_child_valid_struct with (d:=data) in Hs.
       unfold is_valid_tree_ids in *.
       destruct (delete_in_tree i t0 param) eqn:D; simpl in *; auto.
-      + apply delete_is_node in D; try tauto. destruct D as [D | [D | [D | [D | D]]]].
-        2, 3: destruct D as [b [D D']];
-          rewrite D in *; simpl in *;
-          split; try apply Data.compress_valid; try tauto.
-        2, 3: destruct D as [b [d' [d'' [D [D' D'']]]]];
-          rewrite D in *; simpl in H;
-          split; try rewrite D''; repeat apply Data.compress_valid; try tauto.
-        * destruct D as [c' [D [D' D'']]].
-          destruct H as [Hdata H].
-          specialize (IHt _ i Hs Hids H).
-          rewrite D in *. simpl in *.
-          split.
-          -- apply Data.compress_valid; try tauto.
-          -- destruct (delete_in_tree i c' param) eqn:C; try congruence;
-               rewrite <- D' in IHt; simpl in IHt; tauto.
-      + apply delete_is_branch in D; try tauto. destruct D as [D | [D | [D | D]]].
-        3, 4: destruct D as [d [D D']];
-          rewrite D in H; simpl in H;
-          repeat split; tauto.
-        * destruct D as [l' [D D']].
-          destruct H as [H H'].
-          specialize (IHt _ i Hs Hids H').
-          rewrite D in H', IHt.
-          simpl in H'.
-          repeat split; try tauto.
-          simpl in IHt.
-          admit.
-        * admit.
-      + split; tauto.
+      + destruct H as [Hd H].
+        specialize (IHt _ i Hs Hids H).
+        rewrite D in IHt. simpl in IHt.
+        split.
+        * apply Data.compress_valid; tauto.
+        * tauto.
+      + destruct H as [Hd H].
+        specialize (IHt _ i Hs Hids H).
+        rewrite D in IHt. simpl in IHt.
+        tauto.
+      + tauto.
     - apply branch_children_valid_struct in Hs.
       unfold is_valid_tree_ids in *. simpl in Hids.
       destruct (is_branch_with_id i t1).
@@ -1674,11 +1656,10 @@ Module VT (Data : CDATA).
       + destruct (is_branch_with_id i t2).
         * tauto.
         * simpl.
-          Search (NoDup (_ ++ _)).
           split; [apply IHt1 | apply IHt2]; try tauto;
             [eapply NoDup_app_remove_r | eapply NoDup_app_remove_l]; eauto.
     - destruct (id =? i); simpl; auto.
-  Admitted.
+  Qed.
 
   Lemma delete_valid_structure : forall t p id,
       is_valid_tree_structure t ->
