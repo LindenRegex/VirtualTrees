@@ -9,8 +9,6 @@ Module Type CDATA.
 
   Parameter is_valid: p -> t -> Prop.
 
-  (* TODO: add some axioms *)
-
   (* validity after compression *)
   Axiom compress_valid : forall x y (p: p),
       is_valid p x ->

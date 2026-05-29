@@ -1,109 +1,9 @@
- 
+
 Require Import CData.
+Require Import ListHelpers.
 
 From Stdlib Require Import Arith Lia List Permutation.
 Import ListNotations.
-
-Module ListHelpers.
-
-  Lemma NoDup_one {A} : forall (x: A),
-      NoDup [x].
-  Proof.
-    intros x.
-    constructor.
-    - intros H.
-      apply in_nil in H.
-      contradiction.
-    - constructor.
-  Qed.
-
-  Lemma NoDup_two {A} : forall (x y: A),
-      x <> y ->
-      NoDup [x; y].
-  Proof.
-    intros x y H.
-    constructor.
-    - intros C; inversion C; subst; auto.
-    - apply NoDup_one.
-  Qed.
-
-  Lemma NoDup_app_add {A} : forall l l' (a: A),
-      ~ In a l ->
-      ~ In a l' ->
-      NoDup (l ++ l') ->
-      NoDup (l ++ a :: l').
-  Proof.
-    induction l; intros l' b Ha Ha' H; simpl in *; auto.
-    - constructor; auto.
-    - apply NoDup_cons_iff in H. destruct H as [H H'].
-      constructor.
-      + intros C.
-        rewrite in_app_iff in *.
-        destruct C as [C | C].
-        * tauto.
-        * apply in_inv in C.
-          destruct C as [C | C]; try symmetry in C; tauto.
-      + apply IHl; auto.
-  Qed.
-
-  Lemma NoDup_in_app {A} : forall l l' (a: A),
-      NoDup (l ++ l') ->
-      In a l ->
-      ~ In a l'.
-  Proof.
-    induction l; intros l' b H Ha; simpl.
-    - inversion Ha.
-    - rewrite <- app_comm_cons in H.
-      apply NoDup_cons_iff in H. destruct H as [Hi H].
-      apply in_inv in Ha.
-      destruct Ha as [Ha | Ha].
-      + rewrite Ha in *.
-        rewrite in_app_iff in Hi.
-        tauto.
-      + apply IHl; auto.
-  Qed.
-
-  Lemma NoDup_app_comm {A} : forall (l l': list A),
-      NoDup (l ++ l') -> NoDup (l' ++ l).
-  Proof.
-    induction l; intros l' H; simpl in *.
-    - rewrite app_nil_r.
-      assumption.
-    - apply NoDup_cons_iff in H. destruct H as [Hin H].
-      rewrite in_app_iff in Hin.
-      apply NoDup_app_add; auto.
-  Qed.
-
-  Lemma NoDup_app_remove {A} : forall (l l' : list A),
-      NoDup (l ++ l') ->
-      NoDup l /\ NoDup l'.
-  Proof.
-    intros. split.
-    - eapply NoDup_app_remove_r. eauto.
-    - eapply NoDup_app_remove_l. eauto.
-  Qed.
-
-  Lemma Permutation_app_sym {A} : forall (l l' m : list A),
-      Permutation (l ++ l') m ->
-      Permutation (l' ++ l) m.
-  Proof.
-    intros.
-    econstructor.
-    - apply Permutation_app_comm.
-    - assumption.
-  Qed.
-
-  Lemma in_subset {A} : forall (a: A) l l',
-      incl l l' ->
-      In a l ->
-      In a l'.
-  Proof.
-    intros.
-    unfold incl in *.
-    auto.
-  Qed.
-  
-End ListHelpers.
 
 Module VT (Data : CDATA).
   Import Data.
@@ -112,7 +12,7 @@ Module VT (Data : CDATA).
 
   (** Inductive type *)
 
-  Inductive VirtualTree : Type := (* the actual tree with root, branch, node and leaf *)
+  Inductive VirtualTree : Type :=
   | Stump
   | Node (data: Data.t) (child: VirtualTree)
   | Branch (l: VirtualTree) (r: VirtualTree)
@@ -172,14 +72,6 @@ Module VT (Data : CDATA).
 
   Definition is_valid_id (t: VirtualTree) (id: nat) : Prop :=
     In id (get_all_ids t).
-
-  Fixpoint is_valid_id' (t: VirtualTree) (id: nat) : Prop :=
-    match t with
-    | Stump => False
-    | Node _ c => is_valid_id c id
-    | Branch l r => is_valid_id l id \/ is_valid_id r id
-    | Leaf i => i = id
-    end.
 
   Fixpoint max_id_in_tree (t: VirtualTree) : nat :=
     match t with
@@ -307,7 +199,8 @@ Module VT (Data : CDATA).
   (*** Get: get the compressed data for one leaf *)
 
   (* Top down computation *)
-  Fixpoint get_compressed_data_in_tree (id: nat) (t: VirtualTree) (p: Data.p) (acc: option Data.t):
+  Fixpoint get_compressed_data_in_tree (id: nat)
+    (t: VirtualTree) (p: Data.p) (acc: option Data.t):
     option Data.t :=
     match t with
     | Stump => acc
@@ -334,27 +227,6 @@ Module VT (Data : CDATA).
 
   (** Id validity helpers *)
 
-  Lemma valid_in_ids : forall t id,
-      is_valid_id t id <-> In id (get_all_ids t).
-  Proof. intros. split; auto.
-    (*intros t i; induction t;
-      split; intros H;
-      simpl in *;
-      try apply IHt; auto.
-    - apply in_app_iff.
-      destruct H as [H1 | H2];
-        [left | right];
-        [apply IHt1 | apply IHt2];
-        auto.
-    - apply in_app_iff in H.
-      destruct H as [Hl | Hr];
-        [left | right];
-        [apply IHt1 | apply IHt2];
-        auto.
-    - destruct H; auto.
-      contradiction.*)
-  Qed.
-
   Lemma contains_valid_id : forall t id,
       contains_id t id = true <-> is_valid_id t id.
   Proof.
@@ -371,19 +243,6 @@ Module VT (Data : CDATA).
       tauto.
     - apply Nat.eqb_eq.
       tauto.
-    (*
-    split; induction t0; intros; simpl in *; auto.
-    - congruence.
-    - apply Bool.orb_prop in H.
-      destruct H as [Hl | Hr];
-        [left | right]; auto.
-    - apply Nat.eqb_eq in H.
-      assumption.
-    - apply Bool.orb_true_iff.
-      destruct H as [Hl | Hr];
-        [left | right]; auto.
-    - apply Nat.eqb_eq.
-      assumption.*)
   Qed.
 
   Lemma not_contains_valid_id : forall t id,
@@ -437,19 +296,21 @@ Module VT (Data : CDATA).
 
   Lemma valid_id_branch_xor : forall l r id,
       is_valid_tree_ids (Branch l r) ->
-      is_valid_id (Branch l r) id ->
       ~ (is_valid_id l id ) \/ ~ (is_valid_id r id).
   Proof.
-    intros l r id H Hi.
+    intros l r id H.
     unfold is_valid_id in *.
     unfold is_valid_tree_ids in H. simpl in H.
-    apply contains_valid_id in Hi. simpl in Hi.
-    apply Bool.orb_prop in Hi.
-    destruct Hi as [Hi | Hi];
-      [right | left];
-      apply contains_valid_id in Hi;
-      eapply ListHelpers.NoDup_in_app; eauto.
-    apply ListHelpers.NoDup_app_comm; auto.
+    destruct (contains_id (Branch l r) id) eqn:Hi; simpl in Hi.
+    - apply Bool.orb_prop in Hi.
+      destruct Hi as [Hi | Hi];
+        [right | left];
+        apply contains_valid_id in Hi;
+        eapply ListHelpers.NoDup_in_app; eauto.
+      apply ListHelpers.NoDup_app_comm; auto.
+    - apply Bool.orb_false_iff in Hi.
+      rewrite not_contains_valid_id in Hi.
+      tauto.
   Qed.
 
   Lemma branch_children_have_valid_ids : forall l r,
@@ -462,6 +323,15 @@ Module VT (Data : CDATA).
     split;
       [eapply NoDup_app_remove_r | eapply NoDup_app_remove_l];
       eauto.
+  Qed.
+
+  Lemma get_all_ids_stem_with_id : forall t i,
+      is_stem_with_id i t = true ->
+      get_all_ids t = [i].
+  Proof.
+    intros t i.
+    induction t; intros H; simpl in *; try congruence; auto.
+    apply Nat.eqb_eq in H; subst; reflexivity.
   Qed.
 
   (** Structure helpers *)
@@ -498,13 +368,6 @@ Module VT (Data : CDATA).
     congruence.
   Qed.
 
-  Lemma node_child_has_valid_struct : forall d c,
-      is_valid_tree_structure (Node d c) ->
-      is_valid_tree_structure c.
-  Proof.
-    intros; simpl in *; destruct c; try contradiction; auto.
-  Qed.
-
   Lemma branch_of_children_with_valid_structure : forall l r,
       l <> Stump ->
       r <> Stump ->
@@ -514,20 +377,6 @@ Module VT (Data : CDATA).
   Proof.
     intros. simpl in *.
     destruct l; destruct r; auto.
-  Qed.
-
-  Lemma branch_children_have_valid_struct : forall l r,
-      is_valid_tree_structure (Branch l r) ->
-      is_valid_tree_structure l /\ is_valid_tree_structure r.
-  Proof.
-    intros l r H; simpl in *; destruct l, r; try contradiction; tauto.
-  Qed.
-
-  Lemma valid_branch_has_no_stump_child : forall l r,
-      is_valid_tree_structure (Branch l r) ->
-      l <> Stump /\ r <> Stump.
-  Proof.
-    intros; simpl in *; split; destruct _; try contradiction; destruct _; try congruence.
   Qed.
 
   Lemma is_stem_with_id_struct : forall t id,
@@ -544,6 +393,16 @@ Module VT (Data : CDATA).
     - left.
       apply Nat.eqb_eq in H.
       congruence.
+  Qed.
+
+  Lemma is_stem_with_invalid_id : forall t id,
+      ~ is_valid_id t id ->
+      is_stem_with_id id t = false.
+  Proof.
+    unfold is_valid_id.
+    intros t id H.
+    induction t; simpl in *; auto.
+    - apply Nat.eqb_neq. lia.
   Qed.
 
   (** Tactics definitions *)
@@ -574,20 +433,37 @@ Module VT (Data : CDATA).
     | _ => tauto
     end.
 
-  Check in_app_iff.
-
   Ltac branch_valid_xor :=
     repeat match goal with
       | [Hids: is_valid_tree_ids (Branch ?t1 ?t2), Hi: is_valid_id (Branch ?t1 ?t2) ?i |- _] =>
-          specialize (valid_id_branch_xor t1 t2 i Hids Hi) as XOR;
+          specialize (valid_id_branch_xor t1 t2 i Hids) as XOR;
           assert (I': is_valid_id (Branch t1 t2) i) by assumption;
           unfold is_valid_id in Hi; simpl in Hi;
           apply in_app_iff in Hi; destruct Hi as [Hi | Hi]
+      end.
+
+  Ltac destruct_stems :=
+    repeat match goal with
+      | [ |- context[is_stem_with_id ?i ?t1] ] =>
+          destruct (is_stem_with_id i t1) eqn:B1
+      | [ |- context[is_stem_with_id ?i ?t2] ] =>
+          destruct (is_stem_with_id i t2) eqn:B2
+      | [Hids : is_valid_tree_ids (Branch ?t1 ?t2),
+            B1: is_stem_with_id ?i ?t1 = true, B2: is_stem_with_id ?i ?t2 = true |- _] =>
+          apply get_all_ids_stem_with_id in B1, B2;
+          unfold is_valid_tree_ids in *; simpl in *;
+          rewrite B1, B2 in Hids; simpl in *;
+          apply ListHelpers.not_NoDup_two in Hids; contradiction
+      | [Hids : NoDup (get_all_ids ?t1 ++ get_all_ids ?t2),
+            B1: is_stem_with_id ?i ?t1 = true, B2: is_stem_with_id ?i ?t2 = true |- _] =>
+          apply get_all_ids_stem_with_id in B1, B2;
+          rewrite B1, B2 in Hids; simpl in *;
+          apply ListHelpers.not_NoDup_two in Hids; contradiction
     end.
 
-  (** Get helpers *)
+  (** Get properties *)
 
-  Lemma get_is_valid : forall t p i o,
+  Lemma get_is_valid_in_tree : forall t p i o,
       is_valid_tree_data t p ->
       (forall d, o = Some d -> Data.is_valid p d) ->
       (forall d, get_compressed_data_in_tree i t p o = Some d -> Data.is_valid p d).
@@ -612,7 +488,7 @@ Module VT (Data : CDATA).
       auto.
   Qed.
 
-  Lemma get_on_invalid_id : forall t p i o,
+  Lemma get_on_invalid_id_in_tree : forall t p i o,
       t <> Stump ->
       is_valid_tree_structure t ->
       ~ is_valid_id t i ->
@@ -630,7 +506,7 @@ Module VT (Data : CDATA).
       + reflexivity.
   Qed.
 
-  Lemma contains_get_from_some : forall t p i d,
+  Lemma contains_get_from_some_in_tree : forall t p i d,
       is_valid_tree_structure t ->
       is_valid_tree_ids t ->
       is_valid_id t i ->
@@ -643,7 +519,7 @@ Module VT (Data : CDATA).
         destruct Hi as [d' Hi].
         erewrite Hi.
         eauto.
-      + rewrite get_on_invalid_id;
+      + rewrite get_on_invalid_id_in_tree;
           try solve_branch_preconds.
         eapply IHt2; try solve_branch_preconds.
     - unfold is_valid_id in *.
@@ -652,6 +528,29 @@ Module VT (Data : CDATA).
       subst.
       rewrite Nat.eqb_refl.
       eauto.
+  Qed.
+
+  Theorem get_is_valid : forall s i,
+      is_valid_state s ->
+      (forall d, get_compressed_data i s = Some d -> Data.is_valid (param s) d).
+  Proof.
+    unfold get_compressed_data.
+    intros s i [Hs [Hids Hd]].
+    eapply get_is_valid_in_tree; eauto.
+    intros. congruence.
+  Qed.
+
+  Theorem get_on_invalid_id : forall s i,
+      is_valid_state s ->
+      ~ is_valid_id (tree s) i ->
+      get_compressed_data i s = None.
+  Proof.
+    unfold get_compressed_data.
+    intros s i [Hs [Hids Hd]] Hi.
+    destruct s as [t p].
+    destruct t eqn:T.
+    1: simpl. reflexivity.
+    all: apply get_on_invalid_id_in_tree; auto; simpl; congruence.
   Qed.
 
   (** Insert properties *)
@@ -783,7 +682,6 @@ Module VT (Data : CDATA).
   Theorem insert_valid : forall s id d,
       Data.is_valid (param s) d ->
       is_valid_state s ->
-      is_valid_id (tree s) id ->
       is_valid_state (insert id d s).
   Proof.
     intros.
@@ -804,14 +702,15 @@ Module VT (Data : CDATA).
       is_valid_tree_ids t ->
       is_valid_id t id ->
       get_compressed_data_in_tree id t p o = None ->
-      get_compressed_data_in_tree id (insert_in_tree id d t p) p o = Some d.
+      get_compressed_data_in_tree id
+        (insert_in_tree id d t p) p o = Some d.
   Proof.
     intros t; induction t;
       intros param i d o Hs Hids Hid H;
       simpl in *.
     - contradiction.
     - unfold is_valid_id in Hid. simpl in Hid.
-      apply contains_get_from_some with
+      apply contains_get_from_some_in_tree with
         (d:= match o with | Some a => compress param a data | None => data end)
         (p:= param)
         in Hid;
@@ -821,7 +720,7 @@ Module VT (Data : CDATA).
     - branch_valid_xor.
       + destruct (get_compressed_data_in_tree i t1 param o) eqn:G; try congruence.
         erewrite IHt1; try solve_branch_preconds.
-      + rewrite get_on_invalid_id; try solve_insert_preconds.
+      + rewrite get_on_invalid_id_in_tree; try solve_insert_preconds.
         apply IHt2; try solve_branch_preconds.
         destruct (get_compressed_data_in_tree i t1 param o);
           try congruence; auto.
@@ -850,7 +749,7 @@ Module VT (Data : CDATA).
       ~ is_valid_id (insert_in_tree i d t p) id.
   Proof.
     intros.
-    rewrite valid_in_ids in *.
+    unfold is_valid_id in *.
     rewrite <- insert_ids in *.
     assumption.
   Qed.
@@ -887,10 +786,10 @@ Module VT (Data : CDATA).
         * injection H as H.
           rewrite IHt1 with (c_old := t0); try solve_branch_preconds.
           congruence.
-        * rewrite get_on_invalid_id with (t:=t2) in H; try solve_branch_preconds.
+        * rewrite get_on_invalid_id_in_tree with (t:=t2) in H; try solve_branch_preconds.
           congruence.
-      + rewrite get_on_invalid_id with (t:=t1) in H; try solve_branch_preconds.
-        rewrite get_on_invalid_id; solve_insert_preconds.
+      + rewrite get_on_invalid_id_in_tree with (t:=t1) in H; try solve_branch_preconds.
+        rewrite get_on_invalid_id_in_tree; solve_insert_preconds.
         apply IHt2; solve_branch_preconds.
     - unfold is_valid_id in *. destruct Hi as [Hi |]; try contradiction.
       apply Nat.eqb_eq in Hi. rewrite Hi in *.
@@ -1171,11 +1070,12 @@ Module VT (Data : CDATA).
   Qed.
 
   (* the output state of split is valid, and the new id is valid on that tree *)
-  Lemma split_valid : forall t p id,
+  Theorem split_valid : forall t p id,
       is_valid_state (t, p) ->
       is_valid_id t id ->
       let (s', j) := split id (t, p) in
-      is_valid_state s' /\ is_valid_id (tree s') j.
+      is_valid_state s' /\
+        is_valid_id (tree s') j.
   Proof.
     intros.
     unfold is_valid_state in *.
@@ -1243,7 +1143,7 @@ Module VT (Data : CDATA).
   Qed.
 
   (* when splitting a leaf i, the resulting new leaves have the same compressed data as i *)
-  Lemma split_get_new_leaves : forall t p i o,
+  Theorem split_get_new_leaves : forall t p i o,
       is_valid_state (t, p) ->
       get_compressed_data i (t, p) = o ->
       let (s', j) := split i (t, p) in
@@ -1272,7 +1172,7 @@ Module VT (Data : CDATA).
 
   (* when splitting leaf i, all other leaves have unchanged data *)
   (* if i is invalid, the tree does not change and the property still holds *)
-  Lemma split_unchanged: forall t p i j o,
+  Theorem split_unchanged: forall t p i j o,
       is_valid_state (t, p) ->
       let (s', k) := split i (t, p) in
       i <> j ->
@@ -1294,16 +1194,6 @@ Module VT (Data : CDATA).
   Qed.
 
   (** Delete properties *)
-
-  Lemma is_stem_with_invalid_id : forall t id,
-      ~ is_valid_id t id ->
-      is_stem_with_id id t = false.
-  Proof.
-    unfold is_valid_id.
-    intros t id H.
-    induction t; simpl in *; auto.
-    - apply Nat.eqb_neq. lia.
-  Qed.
 
   Lemma delete_on_invalid_id : forall t id p,
       is_valid_tree_structure t ->
@@ -1334,8 +1224,8 @@ Module VT (Data : CDATA).
       destruct t0 eqn:T0; try contradiction; specialize (IHt Hs H);
         destruct IHt as [k | [k | [d k]]]; try congruence.
     - destruct (is_stem_with_id i t1) eqn:B1; simpl in *.
-      + apply is_stem_with_id_struct in B1; try solve_branch_preconds.
-        subst. destruct t1; try contradiction; congruence.
+      + subst.
+        destruct t1; contradiction.
       + destruct (is_stem_with_id i t2) eqn:B2; simpl in *.
         * subst. contradiction.
         * congruence.
@@ -1344,58 +1234,27 @@ Module VT (Data : CDATA).
       + apply Nat.eqb_eq in I. congruence.
       + congruence.
   Qed.
-        
-  Lemma delete_is_branch : forall t p i l r,
+
+  Lemma delete_is_not_Stump : forall t p id,
       is_valid_tree_structure t ->
-      is_valid_tree_ids t ->
-      delete_in_tree i t p = Branch l r ->
-      (* children are not branch with id *)
-      (exists l', t = Branch l' r /\ l = delete_in_tree i l' p) \/
-        (exists r', t = Branch l r' /\ r = delete_in_tree i r' p) \/
-        (* children are branch with id *)
-        (exists l', t = Branch l' (Branch l r) /\ is_stem_with_id i l' = true) \/
-        (exists r', t = Branch (Branch l r) r' /\ is_stem_with_id i r' = true).
+      t <> Stump ->
+      is_stem_with_id id t = false ->
+      delete_in_tree id t p <> Stump.
   Proof.
-    intros t param i. induction t; intros l r Hs Hids H; simpl in *; try congruence.
-    - destruct (delete_in_tree i t0 param); congruence.
-    - destruct (contains_id (Branch t1 t2) i) eqn:I.
-      + apply contains_valid_id in I.
-        branch_valid_xor.
-        * assert (B2: is_stem_with_id i t2 = false) by
-            (apply is_stem_with_invalid_id; tauto).
-          rewrite B2 in *.
-          destruct (is_stem_with_id i t1) eqn:B1.
-          -- right. right. left.
-             exists t1.
-             split; congruence.
-          -- left.
-             exists t1.
-             rewrite delete_on_invalid_id with (t:=t2) in H; try solve_branch_preconds.
-             injection H as H1 H2. subst.
-             split; auto.
-        * assert (B1: is_stem_with_id i t1 = false) by
-            (apply is_stem_with_invalid_id; tauto).
-          rewrite B1 in *.
-          destruct (is_stem_with_id i t2) eqn:B2.
-          -- right. right. right.
-             exists t2.
-             split; congruence.
-          -- right. left.
-             exists t2.
-             rewrite delete_on_invalid_id with (t:=t1) in H; try solve_branch_preconds.
-             injection H as H1 H2. subst.
-             auto.
-      + simpl in I. apply Bool.orb_false_iff in I. destruct I as [I1 I2].
-        apply not_contains_valid_id in I1, I2.
-        left.
-        exists t1.
-        rewrite delete_on_invalid_id with (t:=t1) in *; try solve_branch_preconds.
-        rewrite delete_on_invalid_id with (t:=t2) in H; try solve_branch_preconds.
-        apply is_stem_with_invalid_id in I1, I2.
-        rewrite I1, I2 in H.
-        injection H as H.
-        split; congruence.
-    - destruct (id =? i); congruence.
+    intros t param i Hs Ht Hi.
+    destruct t; simpl in *; try congruence.
+    - destruct (delete_in_tree i t0 param) eqn:D; try congruence.
+      apply delete_is_stump in D.
+      + destruct D as [D | [D | [d D]]]; rewrite D in Hs, Hi; simpl in *;
+          try contradiction;
+          try rewrite Nat.eqb_refl in *;
+          try congruence.
+      + try solve_node_preconds.
+    - destruct_stems;
+        try congruence;
+        destruct t1, t2; try contradiction; congruence.
+    - rewrite Hi.
+      congruence.
   Qed.
 
   Lemma delete_is_leaf : forall t p i j,
@@ -1428,11 +1287,9 @@ Module VT (Data : CDATA).
   Lemma delete_ids : forall t p id,
       incl (get_all_ids (delete_in_tree id t p)) (get_all_ids t).
   Proof.
-    intros t; induction t; intros param i; simpl in *.
+    intros t param i; induction t; simpl in *.
     - apply incl_refl.
     - destruct (delete_in_tree i t0 param) eqn:D; auto.
-      2, 3, 4: specialize (IHt param i); rewrite D in IHt; simpl in IHt; assumption.
-      + apply incl_nil_l.
     - destruct (is_stem_with_id i t1); simpl.
       + apply incl_appr.
         apply incl_refl.
@@ -1443,15 +1300,6 @@ Module VT (Data : CDATA).
     - destruct (id =? i); simpl.
       + apply incl_nil_l.
       + apply incl_refl.
-  Qed.
-
-  Lemma get_all_ids_branch_with_id : forall t i,
-      is_stem_with_id i t = true ->
-      get_all_ids t = [i].
-  Proof.
-    intros t i.
-    induction t; intros H; simpl in *; try congruence; auto.
-    apply Nat.eqb_eq in H; subst; reflexivity.
   Qed.
         
   Lemma delete_valid_ids : forall t p id,
@@ -1466,30 +1314,27 @@ Module VT (Data : CDATA).
       + apply IHt; solve_node_preconds.
       + apply IHt; solve_branch_preconds.
       + apply ListHelpers.NoDup_one.
-    - pose proof valid_id_branch_xor as XOR.
-      destruct (is_stem_with_id i t1) eqn:B1.
+    - destruct_stems.
       + eapply NoDup_app_remove_l. eauto.
-      + destruct (is_stem_with_id i t2) eqn:B2.
-        * eapply NoDup_app_remove_r. eauto.
-        * unfold is_valid_tree_ids. simpl.
-          apply NoDup_app.
-          -- apply IHt1; try solve_branch_preconds.
-          -- apply IHt2; try solve_branch_preconds.
-          -- intros a Ha1 Ha2.
-             specialize (delete_ids t1 param i) as Dids1.
-             specialize (delete_ids t2 param i) as Dids2.
-             specialize (ListHelpers.in_subset _ _ _ Dids1 Ha1) as I1.
-             specialize (ListHelpers.in_subset _ _ _ Dids2 Ha2) as I2.
-             apply valid_in_ids in I1, I2.
-             assert (Bid: is_valid_id (Branch t1 t2) a) by
-               (unfold is_valid_id in *; simpl; apply in_app_iff; tauto).
-             specialize (XOR _ _ _ Hids Bid).
-             tauto.
+      + eapply NoDup_app_remove_r. eauto.
+      + unfold is_valid_tree_ids. simpl.
+        apply NoDup_app.
+        * apply IHt1; try solve_branch_preconds.
+        * apply IHt2; try solve_branch_preconds.
+        * intros a Ha1 Ha2.
+          specialize (delete_ids t1 param i) as Dids1.
+          specialize (delete_ids t2 param i) as Dids2.
+          specialize (ListHelpers.in_subset _ _ _ Dids1 Ha1) as I1.
+          specialize (ListHelpers.in_subset _ _ _ Dids2 Ha2) as I2.
+          assert (Bid: is_valid_id (Branch t1 t2) a) by
+            (unfold is_valid_id in *; simpl; apply in_app_iff; tauto).
+          specialize (valid_id_branch_xor _ _ a Hids) as XOR.
+          tauto.
     - destruct (id =? i); simpl.
       + constructor.
       + apply ListHelpers.NoDup_one.
   Qed.
-        
+  
   Lemma delete_valid_data : forall t p id,
       is_valid_tree_structure t ->
       is_valid_tree_ids t ->
@@ -1497,41 +1342,16 @@ Module VT (Data : CDATA).
       is_valid_tree_data (delete_in_tree id t p) p.
   Proof.
     intros t param i; induction t; intros Hs Hids H; simpl in *; auto.
-    - destruct (delete_in_tree i t0 param) eqn:D; simpl in *; try tauto.
-      + split.
-        * apply Data.compress_valid; try apply IHt; try solve_node_preconds.
-        * apply IHt; try solve_node_preconds.
-      + split.
-        * tauto.
-        * apply IHt; solve_branch_preconds.
-    - destruct (is_stem_with_id i t1).
-      + tauto.
-      + destruct (is_stem_with_id i t2).
-        * tauto.
-        * simpl.
-          split; [apply IHt1 | apply IHt2]; try solve_branch_preconds.
+    - destruct (delete_in_tree i t0 param) eqn:D; simpl in *;
+        try tauto;
+        split;
+        try apply Data.compress_valid;
+        try apply IHt; solve_branch_preconds.
+    - destruct_stems; try tauto.
+      split;
+        [apply IHt1 | apply IHt2];
+        solve_branch_preconds.
     - destruct (id =? i); simpl; auto.
-  Qed.
-
-  Lemma delete_is_not_Stump : forall t p id,
-      is_valid_tree_structure t ->
-      t <> Stump ->
-      is_stem_with_id id t = false ->
-      delete_in_tree id t p <> Stump.
-  Proof.
-    intros t param i Hs Ht Hi.
-    destruct t; simpl in *; try congruence.
-    - destruct (delete_in_tree i t0 param) eqn:D; try congruence.
-      + apply delete_is_stump in D.
-        * destruct D as [D | [D | [d D]]]; rewrite D in Hs, Hi; simpl in *;
-            try contradiction; try rewrite Nat.eqb_refl in *; try congruence.
-        * try solve_node_preconds.
-    - destruct (is_stem_with_id i t1);
-        destruct (is_stem_with_id i t2);
-        try congruence;
-        destruct t1, t2; try contradiction; congruence.
-    - rewrite Hi.
-      congruence.
   Qed.
 
   Lemma delete_valid_structure : forall t p id,
@@ -1541,22 +1361,17 @@ Module VT (Data : CDATA).
   Proof.
     intros t param i; induction t; intros Hs Hids; simpl in *; auto.
     - destruct (delete_in_tree i t0 param) eqn:D; simpl in *;
-        try apply IHt; try solve_node_preconds.
-    - destruct (is_stem_with_id i t1) eqn:B1.
-      + solve_branch_preconds.
-      + destruct (is_stem_with_id i t2) eqn:B2.
-        * solve_branch_preconds.
-        * apply branch_of_children_with_valid_structure.
-          1, 2: apply delete_is_not_Stump; try tauto;
-          destruct t1, t2; try contradiction; try congruence; try tauto.
-          all: apply branch_children_have_valid_struct in Hs.
-          -- apply IHt1; solve_branch_preconds.
-          -- apply IHt2; solve_branch_preconds.
+        apply IHt; solve_node_preconds.
+    - destruct_stems; try solve_branch_preconds.
+      apply branch_of_children_with_valid_structure.
+      1, 2: apply delete_is_not_Stump; try solve_branch_preconds.
+      + apply IHt1; solve_branch_preconds.
+      + apply IHt2; solve_branch_preconds.
     - destruct (id =? i); auto.
   Qed.
 
-  (* the output of delete is valid, and the id of the delete leaf is invalid on that tree *)
-  Lemma delete_valid : forall t p id,
+  (* the output of delete is valid*)
+  Theorem delete_valid : forall t p id,
     is_valid_state (t, p) ->
     let s' := delete id (t, p) in
     is_valid_state s'.
@@ -1574,46 +1389,36 @@ Module VT (Data : CDATA).
       is_valid_tree_ids t ->
       ~ is_valid_id (delete_in_tree id t p) id.
   Proof.
-    intros t param i; induction t; intros Hs Hids; unfold is_valid_tree_ids in *; simpl in *.
+    intros t param i; induction t; intros Hs Hids;
+      unfold is_valid_tree_ids in *; simpl in *.
     - tauto.
     - destruct (delete_in_tree i t0 param) eqn:D; simpl in *; try tauto.
       all: apply IHt; try solve_node_preconds.
-    - pose proof valid_id_branch_xor as XOR.
-      specialize (XOR _ _ i Hids).
-      destruct (is_stem_with_id i t1) eqn:B1.
-      + apply get_all_ids_branch_with_id in B1.
+    - specialize (valid_id_branch_xor _ _ i Hids) as XOR.
+      destruct_stems;
+        unfold is_valid_id in *; simpl in *.
+      + apply get_all_ids_stem_with_id in B1.
         assert (I: In i (get_all_ids t1)) by (rewrite B1; simpl; auto).
-        apply valid_in_ids in I.
         pose proof or_introl as OIL. specialize (OIL _ (is_valid_id t2 i) I).
-        unfold is_valid_id in *. simpl in *. rewrite in_app_iff in XOR.
-        simpl in XOR. apply XOR in OIL.
         tauto.
-      + destruct (is_stem_with_id i t2) eqn:B2.
-        * apply get_all_ids_branch_with_id in B2.
-          assert (I: In i (get_all_ids t2)) by (rewrite B2; simpl; auto).
-          apply valid_in_ids in I.
-          pose proof or_intror as OIL. specialize (OIL (is_valid_id t1 i) _ I).
-          unfold is_valid_id in *. simpl in *. rewrite in_app_iff in XOR.
-          simpl in XOR. apply XOR in OIL.
-          tauto.
-        * simpl.
-          unfold is_valid_id in *.
-          apply branch_children_have_valid_struct in Hs.
-          destruct Hs as [Hs1 Hs2].
-          apply ListHelpers.NoDup_app_remove in Hids.
-          destruct Hids as [Hids1 Hids2].
-          specialize (IHt1 Hs1 Hids1).
-          specialize (IHt2 Hs2 Hids2).
-          simpl in *.
-          rewrite in_app_iff.
-          tauto.
+      + apply get_all_ids_stem_with_id in B2.
+        assert (I: In i (get_all_ids t2)) by (rewrite B2; simpl; auto).
+        pose proof or_intror as OIR. specialize (OIR (is_valid_id t1 i) _ I).
+        tauto.
+      + rewrite in_app_iff.
+        apply ListHelpers.NoDup_app_remove in Hids.
+        assert (H1: ~ In i (get_all_ids (delete_in_tree i t1 param))) by
+          (apply IHt1; solve_branch_preconds).
+        assert (H2: ~ In i (get_all_ids (delete_in_tree i t2 param))) by
+          (apply IHt2; solve_branch_preconds).
+        tauto.
     - unfold is_valid_id in *.
       destruct (id =? i) eqn:I; simpl in *; try tauto.
       apply Nat.eqb_neq in I.
       lia.
   Qed.
 
-  Lemma delete_invalid_id : forall t p id,
+  Theorem delete_invalid_id : forall t p id,
     is_valid_state (t, p) ->
     let s' := delete id (t, p) in
     ~ is_valid_id (tree s') id.
@@ -1623,7 +1428,7 @@ Module VT (Data : CDATA).
     apply delete_invalid_id_tree; auto.
   Qed.
 
-  Lemma delete_get_on_deleted : forall t p i,
+  Theorem delete_get_on_deleted : forall t p i,
       is_valid_state (t, p) ->
       let s' := delete i (t, p) in
       get_compressed_data i s' = None.
@@ -1635,7 +1440,7 @@ Module VT (Data : CDATA).
     - apply is_Stump in S.
       rewrite S. simpl.
       reflexivity.
-    - apply get_on_invalid_id.
+    - apply get_on_invalid_id_in_tree.
       + apply is_not_Stump.
         assumption.
       + apply delete_valid with (id:=i) in H.
@@ -1649,7 +1454,7 @@ Module VT (Data : CDATA).
       is_valid_tree_structure t ->
       is_stem_with_id i t = true ->
       i <> j ->
-      ~is_valid_id t j.
+      ~ is_valid_id t j.
   Proof.
     unfold is_valid_id.
     intros t i j Hs H Hij.
@@ -1679,95 +1484,83 @@ Module VT (Data : CDATA).
       get_compressed_data_in_tree j (delete_in_tree i t p) p o' = o \/
         (delete_in_tree i t p = Stump).
   Proof.
-    intros t param i j; induction t; intros o o' Hs Hids Hdata Hij Ho H; simpl in *; auto.
+    intros t param i j; induction t; intros o o' Hs Hids Hdata Hij Ho H;
+      unfold is_valid_tree_ids in *; simpl in *; auto.
     - destruct (delete_in_tree i t0 param) eqn:D; simpl in *.
-      + right. reflexivity.
+      1: right. reflexivity.
+      1, 2:  destruct Hdata as [Hdata Htdata];
+        assert (Hs0: is_valid_tree_structure t0) by (solve_node_preconds);
+        assert (Hd: (forall d : t, match o' with
+                                   | Some a => Some (compress param a data)
+                                   | None => Some data
+                                   end = Some d -> is_valid param d))
+          by (intros d Hd;
+              destruct o' eqn:O'; injection Hd as Hd; subst; auto;
+              apply Data.compress_valid; auto);
+        specialize (IHt o (match o' with
+                           | Some a => Some (compress param a data)
+                           | None => Some data
+                           end) Hs0 Hids Htdata Hij Hd H);
+        destruct IHt as [IHt | IHt]; try congruence.
       + left.
-        unfold is_valid_tree_ids in *. simpl in Hids.
-        destruct Hdata as [Hdata Htdata].
-        apply node_child_has_valid_struct with (d:=data0) in Hs.
-        destruct o' eqn:O'; simpl in *.
-        * assert (Ho': (forall d : t, Some (compress param t1 data) = Some d -> is_valid param d)).
-          -- intros d A. injection A as A. subst.
-             apply Data.compress_valid; auto.
-          -- specialize (IHt o (Some (compress param t1 data)) Hs Hids Htdata Hij Ho' H).
-             destruct IHt as [IHt | IHt]; try congruence.
-             rewrite Data.compress_assoc; auto.
-             pose proof delete_valid_data as DATA.
-             specialize (DATA _ _ i Hs Hids Htdata).
-             rewrite D in DATA. simpl in DATA.
-             tauto.
-        * assert (Ho': (forall d : t, Some data = Some d -> is_valid param d)) by
-                   (intros d A; injection A as A; subst; assumption).
-          specialize (IHt o (Some data) Hs Hids Htdata Hij Ho' H).
-          destruct IHt as [IHt | IHt]; try congruence.
+        simpl in IHt. destruct o'; auto.
+        rewrite Data.compress_assoc; auto.
+        assert (DATA: is_valid_tree_data (delete_in_tree i t0 param) param).
+        apply delete_valid_data; try solve_node_preconds.
+        rewrite D in DATA. simpl in DATA.
+        tauto.
+      + left. auto.
       + left.
-        unfold is_valid_tree_ids in *. simpl in Hids.
-        destruct Hdata as [Hdata Htdata].
-        apply node_child_has_valid_struct with (d:=data) in Hs.
-        destruct o' eqn:O'.
-        * assert (Ho': forall d : t, Some (compress param t1 data) = Some d -> is_valid param d) by
-            (intros d A; injection A as A; subst; apply Data.compress_valid; auto).
-          specialize (IHt o (Some (compress param t1 data)) Hs Hids Htdata Hij Ho' H).
-          destruct IHt as [IHt | IHt]; try congruence.
-        * assert (Ho': forall d : t, Some (data) = Some d -> is_valid param d) by
-            (intros d A; injection A as A; subst; assumption).
-          specialize (IHt o (Some (data)) Hs Hids Htdata Hij Ho' H).
-          destruct IHt as [IHt | IHt]; try congruence.
-      + left.
-        apply delete_is_leaf in D. destruct D as [[D Di] | [l [r [D [D' | D']]]]].
-        * subst. simpl in *. reflexivity.
-        * destruct D' as [D' D''].
-          subst. simpl in *.
-          rewrite get_on_invalid_id with (t:=l) (i:=j); auto.
-          1, 2: destruct l; try contradiction; try congruence; tauto.
-          apply is_stem_with_id_struct in D'.
-          -- unfold is_valid_id in *; destruct D' as [D' | [d D']]; subst; simpl; lia.
-          -- destruct l; try contradiction; tauto.
-        * destruct D' as [D' D''].
-          rewrite D in *. simpl.
-          subst. simpl in *.
-          destruct (id =? j) eqn:J.
-          -- destruct o' eqn:O'; reflexivity.
-          -- apply is_stem_with_id_struct in D'.
-             ++ destruct D' as [D' | [d D']]; rewrite D'; simpl;
-                  apply Nat.eqb_neq in Hij; rewrite Hij; reflexivity.
-             ++ destruct r; try contradiction; tauto.
-        * destruct t0; try contradiction; tauto.
+        apply delete_is_leaf in D; try solve_node_preconds.
+        destruct D as [[D Di] | [l [r [D [[D' D''] | [D' D'']]]]]];
+          subst; simpl in *.
+        * reflexivity.
+        * rewrite get_on_invalid_id_in_tree with (t:=l) (i:=j); try solve_node_preconds.
+          apply get_all_ids_stem_with_id in D'.
+          unfold is_valid_id. rewrite D'.
+          intros C. inversion C; auto.
+        * rewrite get_on_invalid_id_in_tree with (t:=r) (i:=j); try solve_node_preconds.
+          -- destruct (id =? j); auto.
+             destruct o'; auto.
+          -- apply get_all_ids_stem_with_id in D'.
+             unfold is_valid_id. rewrite D'.
+             intros C. inversion C; auto.
     - left.
-      pose proof branch_children_have_valid_struct as Hcs. specialize (Hcs _ _ Hs).
-      destruct Hcs as [Hs1 Hs2]. destruct Hdata as [Hd1 Hd2].
-      destruct (is_stem_with_id i t1) eqn:B1.
-      + rewrite get_on_invalid_id in H; try tauto.
-        * destruct t1; try contradiction; congruence.
-        * eapply invalid_id_in_stem_with_id; eauto; tauto.
-      + destruct (is_stem_with_id i t2) eqn:B2.
-        * destruct (get_compressed_data_in_tree j t1 param o') eqn:G1; auto.
-          rewrite get_on_invalid_id in H; try tauto.
-          -- destruct t1, t2; try contradiction; congruence.
-          -- eapply invalid_id_in_stem_with_id; eauto; tauto.
-        * unfold is_valid_tree_ids in *.
-          simpl in *.
-          specialize (NoDup_app_remove_l _ _ Hids) as Hids2.
-          specialize (NoDup_app_remove_r _ _ Hids) as Hids1.
-          destruct (get_compressed_data_in_tree j t1 param o') eqn:G1.
-          -- specialize (IHt1 (Some t0) o' Hs1 Hids1 Hd1 Hij Ho G1).
-             destruct IHt1 as [IHt1 | IHt1].
-             ++ rewrite IHt1. auto.
-             ++ specialize (delete_is_stump_but_not_stem_with_id _ _ _ Hs1 B1 IHt1) as T1.
-                rewrite T1 in Hs.
-                contradiction.
-          -- specialize (IHt1 None o' Hs1 Hids1 Hd1 Hij Ho G1).
-             destruct IHt1 as [IHt1 | IHt1].
-             ++ rewrite IHt1.
-                specialize (IHt2 o o' Hs2 Hids2 Hd2 Hij Ho H).
-                destruct IHt2 as [IHt2 | IHt2]; auto.
-                specialize (delete_is_stump_but_not_stem_with_id _ _ _ Hs2 B2 IHt2) as T2.
-                rewrite T2 in Hs.
-                destruct t1; contradiction.
-             ++ specialize (delete_is_stump_but_not_stem_with_id _ _ _ Hs1 B1 IHt1) as T1.
-                rewrite T1 in Hs.
-                contradiction.
+      destruct_stems; simpl in *.
+      + rewrite get_on_invalid_id_in_tree in H; try solve_branch_preconds.
+        eapply invalid_id_in_stem_with_id; try solve_branch_preconds; eauto.
+      + destruct (get_compressed_data_in_tree j t1 param o') eqn:G1; auto.
+        rewrite get_on_invalid_id_in_tree in H; try solve_branch_preconds.
+        eapply invalid_id_in_stem_with_id; try solve_branch_preconds; eauto.
+      + apply ListHelpers.NoDup_app_remove in Hids.
+        destruct (get_compressed_data_in_tree j t1 param o') eqn:G1.
+        * assert (H1: get_compressed_data_in_tree j (delete_in_tree i t1 param) param o' = Some t0 \/
+                      delete_in_tree i t1 param = Stump)
+            by (apply IHt1; try solve_branch_preconds).
+          destruct H1 as [H1 | H1].
+          -- rewrite H1; auto.
+          -- assert (T1: t1 = Stump)
+               by (apply delete_is_stump_but_not_stem_with_id with (p:=param) (i:=i);
+                   try solve_branch_preconds).
+             subst. contradiction.
+        * assert (H1: get_compressed_data_in_tree j (delete_in_tree i t1 param) param o' = None \/
+                      delete_in_tree i t1 param = Stump)
+            by (apply IHt1; try solve_branch_preconds).
+          destruct H1 as [H1 | H1].
+          -- rewrite H1.
+             assert (H2: get_compressed_data_in_tree j (delete_in_tree i t2 param) param o' = o \/
+                           delete_in_tree i t2 param = Stump)
+               by (apply IHt2; solve_branch_preconds).
+             destruct H2 as [H2 | H2]; auto.
+             assert (T2: t2 = Stump)
+               by (apply delete_is_stump_but_not_stem_with_id with (p:=param) (i:=i);
+                   try solve_branch_preconds).
+             subst.
+             destruct t1; contradiction.
+          -- assert (T1: t1 = Stump)
+               by (apply delete_is_stump_but_not_stem_with_id with (p:=param) (i:=i);
+                   try solve_branch_preconds).
+             subst. contradiction.
     - destruct (id =? j) eqn:J; simpl in *.
       + apply Nat.eqb_eq in J. subst.
         apply Nat.eqb_neq in Hij.
@@ -1783,7 +1576,7 @@ Module VT (Data : CDATA).
           assumption.
   Qed.
 
-  Lemma delete_unchanged : forall t p i j o,
+  Theorem delete_unchanged : forall t p i j o,
       is_valid_state (t, p) ->
       i <> j ->
       get_compressed_data j (t, p) = o ->
