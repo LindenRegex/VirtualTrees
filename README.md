@@ -1,5 +1,10 @@
-# Implementation of virtual trees
+# Formalization of Virtual Trees
 
 **Author:** Mathilde Peruzzo
 
-Implementation of a maintainable version of virtual trees.
+To compile:
+
+```bash
+cd rocq
+make rocq
+```
