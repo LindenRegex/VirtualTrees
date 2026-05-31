@@ -455,6 +455,37 @@ Module RegsData : CDATA.
         else Incomplete l
     end.
 
+  Print nth_error.
+
+  Fixpoint get_first_such_that {A} {B} (l : list A) (b: B) (f: A -> B -> bool) : option A :=
+      match l with
+      | [] => None
+      | a :: l' => if f a b
+                   then Some a
+                   else get_first_such_that l' b f
+      end.
+
+  Definition has_id (triple: nat * val * val) (i: nat) : bool :=
+    match triple with
+    | (j, _ , _) => i =? j
+    end.
+  
+  Definition get_at (i: nat) (p: p) (t: t): (val * val) :=
+    match t with
+    | Complete a_cp a_clk =>
+      match Array.get a_cp i, Array.get a_clk i with
+      | None, None => (None, None) (* what to do in this case ?*)
+      | None, Some clk => (None, clk)
+      | Some cp, None => (cp, None)
+      | Some cp, Some clk =>(cp, clk)
+      end
+    | Incomplete l =>
+        match get_first_such_that l i has_id with
+        | None => (None, None)
+        | Some (j, cp, clk) => (cp, clk)
+        end
+    end.
+
   (* Properties *)
 
   (* Validity *)
