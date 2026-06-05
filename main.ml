@@ -6,8 +6,8 @@ let () =
   let module IntTree = Virtual_tree(struct
     type t = int
     type p = int
-    let neutral_element = 0
     let compress = fun p x y -> max p (x + y)
+    let size_of = fun x -> 0
     let to_string = string_of_int
   end) in
   let tree0 = IntTree.empty param in
