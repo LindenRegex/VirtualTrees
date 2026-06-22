@@ -783,7 +783,7 @@ Module RegsData : CDATA.
     
     all: repeat rewrite length_app in *; try rewrite Nat.add_assoc.
     
-    1, 2: assert(T: p <=? length lz + length ly + length lx = true)
+    1, 2: assert(T: (p <=? length lz + length ly + length lx) = true)
       by (rewrite Nat.leb_le in *; lia);
     rewrite T; reflexivity.
 
