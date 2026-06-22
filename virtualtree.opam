@@ -1,0 +1,11 @@
+opam-version: "2.0"
+synopsis: "Virtual tree data structure"
+authors: ["Mathilde Peruzzo"]
+maintainer: ["Mathilde Peruzzo"]
+depends: [
+    "ocaml" {>= "5.0.0"}
+    "rocq-core" {>= "9.0.0"}
+    "rocq-stdlib" {>= "9.1.0"}
+]
+build: [
+]

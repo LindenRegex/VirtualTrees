@@ -8,7 +8,8 @@ MAIN = main
 TEST = tests
 REGS = regstests
 
-all: $(MAIN) $(TEST)
+all: $(MAIN) $(TEST) $(REGS)
+vt: $(MAIN) $(TEST) 
 regs : $(REGS)
 
 $(MAIN): $(SRC) $(MAIN_SRC)
