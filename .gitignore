@@ -12,3 +12,8 @@
 
 *.csv
 *.jpg
+*.cmi
+*.cmo
+tests
+main
+regstests

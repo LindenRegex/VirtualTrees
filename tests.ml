@@ -1,0 +1,170 @@
+
+open Virtual_tree
+open Array
+
+module IntData = struct
+  type t = int
+  type p = int
+  let compress = fun p x y -> x + y
+  let to_string = string_of_int
+  let copy = fun x -> x
+end
+
+module IntTree = Virtual_tree(IntData)
+
+module ArrayData = struct
+  type t = int Array.t
+  type p = int
+  let compress = fun p o n -> (o.(0) <- n.(0); o)
+  let to_string = fun x -> string_of_int (x.(0))
+  let copy = Array.copy
+end
+
+module ArrayTree = Virtual_tree(ArrayData)
+
+module Tests: sig 
+  val tests : unit -> unit
+end = struct
+
+  let empty_test () =
+    let empty_tree: IntTree.tree = IntTree.initial_tree 0 in
+    assert(IntTree.is_minimal_usable empty_tree);
+    assert((IntTree.depth empty_tree) = 0);
+    assert((IntTree.node_depth empty_tree) = 0);
+    assert((IntTree.get_compressed_data empty_tree) = None);
+    IntTree.delete empty_tree;
+    assert(IntTree.is_minimal_usable empty_tree)
+
+  let delete_single_branch_test () =
+    let tree = IntTree.initial_tree 0 in
+    IntTree.insert tree 0;
+    IntTree.insert tree 1;
+    IntTree.delete tree;
+    assert(IntTree.is_minimal_usable tree)
+
+  let delete_other_child_is_branch_test () = 
+    let tree0 = IntTree.initial_tree 0 in
+    let tree1 = IntTree.split tree0 in
+    assert((IntTree.depth tree0) = 1);
+    assert((IntTree.depth tree1) = 1);
+    assert((IntTree.node_depth tree0) = 0);
+    assert((IntTree.node_depth tree1) = 0);
+    let tree2 = IntTree.split tree1 in
+    assert((IntTree.depth tree0) = 1);
+    assert((IntTree.depth tree1) = 2);
+    assert((IntTree.depth tree2) = 2);
+    assert((IntTree.node_depth tree0) = 0);
+    assert((IntTree.node_depth tree1) = 0);
+    assert((IntTree.node_depth tree2) = 0);
+    IntTree.delete tree0;
+    assert((IntTree.depth tree1) = 1);
+    assert((IntTree.depth tree2) = 1);
+    assert((IntTree.node_depth tree1) = 0);
+    assert((IntTree.node_depth tree2) = 0)
+
+  let get_compressed_data_single_branch_test () = 
+    let tree = IntTree.initial_tree 0 in
+    IntTree.insert tree 3;
+    assert((IntTree.depth tree) = 1);
+    assert((IntTree.node_depth tree) = 1);
+    IntTree.insert tree 4;
+    assert((IntTree.depth tree) = 1);
+    assert((IntTree.node_depth tree) = 1);
+    IntTree.insert tree 5;
+    assert((IntTree.depth tree) = 1);
+    assert((IntTree.node_depth tree) = 1);
+    IntTree.insert tree 6;
+    assert((IntTree.depth tree) = 1);
+    assert((IntTree.node_depth tree) = 1);
+    assert((IntTree.get_compressed_data tree) = Some 18)
+
+  let get_compressed_data_two_branches_test () =
+    let tree = IntTree.initial_tree 0 in
+    IntTree.insert tree 7;
+    let tree0 = IntTree.split tree in
+    IntTree.insert tree 90;
+    assert((IntTree.get_compressed_data tree) = Some 97);
+    assert((IntTree.get_compressed_data tree0) = Some 7);
+    IntTree.insert tree0 23;
+    assert((IntTree.get_compressed_data tree) = Some 97);
+    assert((IntTree.get_compressed_data tree0) = Some 30);
+    IntTree.insert tree0 2;
+    assert((IntTree.get_compressed_data tree) = Some 97);
+    assert((IntTree.get_compressed_data tree0) = Some 32)
+
+  let get_compressed_data_four_branches_test () =
+    let tree0 = IntTree.initial_tree 0 in
+    IntTree.insert tree0 1;
+    let tree1 = IntTree.split tree0 in
+    let tree2 = IntTree.split tree1 in
+    IntTree.insert tree0 2;
+    IntTree.insert tree1 3;
+    IntTree.insert tree2 4;
+    assert((IntTree.get_compressed_data tree0) = Some 3);
+    assert((IntTree.get_compressed_data tree1) = Some 4);
+    assert((IntTree.get_compressed_data tree2) = Some 5);
+    let tree3 = IntTree.split tree0 in
+    assert((IntTree.get_compressed_data tree0) = Some 3);
+    assert((IntTree.get_compressed_data tree3) = Some 3);
+    IntTree.insert tree0 5;
+    IntTree.insert tree3 6;
+    assert((IntTree.get_compressed_data tree0) = Some 8);
+    assert((IntTree.get_compressed_data tree1) = Some 4);
+    assert((IntTree.get_compressed_data tree2) = Some 5);
+    assert((IntTree.get_compressed_data tree3) = Some 9)
+
+  let get_compressed_data_delete_two_branches () =
+    let tree0 = IntTree.initial_tree 0 in
+    IntTree.insert tree0 1;
+    let tree1 = IntTree.split tree0 in
+    IntTree.insert tree0 2;
+    IntTree.insert tree1 3;
+    IntTree.delete tree0;
+    assert((IntTree.get_compressed_data tree1) = Some 4)
+
+  let get_compressed_data_delete_four_branches () =
+    let tree0 = IntTree.initial_tree 0 in
+    IntTree.insert tree0 1;
+    let tree1 = IntTree.split tree0 in
+    let tree2 = IntTree.split tree1 in
+    IntTree.insert tree0 2;
+    IntTree.insert tree1 3;
+    IntTree.insert tree2 4;
+    let tree3 = IntTree.split tree0 in
+    IntTree.insert tree0 5;
+    IntTree.insert tree3 6;
+    IntTree.delete tree0;
+    assert((IntTree.get_compressed_data tree1) = Some 4);
+    assert((IntTree.get_compressed_data tree2) = Some 5);
+    assert((IntTree.get_compressed_data tree3) = Some 9);
+    IntTree.delete tree1;
+    assert((IntTree.get_compressed_data tree2) = Some 5);
+    assert((IntTree.get_compressed_data tree3) = Some 9);
+    IntTree.delete tree2;
+    assert((IntTree.get_compressed_data tree3) = Some 9)
+
+  let get_twice () =
+    let tree0 = ArrayTree.initial_tree 0 in
+    ArrayTree.insert tree0 [|1|];
+    let tree1 = ArrayTree.split tree0 in
+    ArrayTree.insert tree0 [|70|];
+    ArrayTree.insert tree1 [|20|];
+    assert((ArrayTree.get_compressed_data tree0) = Some [|70|]);
+    assert((ArrayTree.get_compressed_data tree1) = Some [|20|])
+
+  let tests () = 
+    Printf.printf "\027[32mTests: \027[0m\n\n";
+    empty_test();
+    delete_single_branch_test();
+    delete_other_child_is_branch_test();
+    get_compressed_data_single_branch_test();
+    get_compressed_data_two_branches_test();
+    get_compressed_data_four_branches_test();
+    get_compressed_data_delete_two_branches();
+    get_compressed_data_delete_four_branches();
+    get_twice();
+    Printf.printf "\027[32mTests passed\027[0m\n"
+end
+
+let () =
+  Tests.tests()
