@@ -7,10 +7,10 @@ let () =
     type t = int
     type p = int
     let compress = fun p x y -> max p (x + y)
-    let size_of = fun x -> 0
     let to_string = string_of_int
+    let copy = fun x -> x
   end) in
-  let tree0 = IntTree.empty param in
+  let tree0 = IntTree.initial_tree param in
   IntTree.print tree0;
   IntTree.insert tree0 5;
   IntTree.print tree0;
